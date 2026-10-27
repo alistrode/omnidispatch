@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:17.6
+    environment:
+      POSTGRES_DB: omni
+      POSTGRES_USER: omni
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a unique database password}
+    volumes: ["database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omni"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  hub:
+    build: ..
+    user: "10001:10001"
+    environment:
+      OMNI_DATABASE_URL: postgresql+psycopg://omni:${POSTGRES_PASSWORD}@db/omni
+      OMNI_STATE: /app/state
+      OMNI_SECURE_COOKIE: "1"
+      OMNI_PUBLIC_ORIGIN: https://${OMNI_DOMAIN:?set domain}
+      OMNI_VAULT_KEY: ${OMNI_VAULT_KEY:?set a Fernet key}
+    volumes: ["state:/app/state"]
+    ports: ["127.0.0.1:8791:8791"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  database:
+  state:

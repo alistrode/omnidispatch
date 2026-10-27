@@ -1,0 +1,419 @@
+{
+  "observed_date": "2026-10-27",
+  "sources": {
+    "sau": {
+      "repository": "dreammis/social-auto-upload",
+      "release": "v1.0.0-skills.2",
+      "published_at": "2026-10-22T18:15:56Z",
+      "assets": []
+    },
+    "xhsmcp": {
+      "repository": "xpzouying/xiaohongshu-mcp",
+      "release": "v2.5.5",
+      "published_at": "2026-09-22T18:57:11Z",
+      "assets": [
+        {
+          "name": "xiaohongshu-login-darwin-arm64",
+          "url": "https://github.com/xpzouying/xiaohongshu-mcp/releases/download/v2.5.5/xiaohongshu-login-darwin-arm64",
+          "size": 11714898
+        },
+        {
+          "name": "xiaohongshu-login-linux-amd64",
+          "url": "https://github.com/xpzouying/xiaohongshu-mcp/releases/download/v2.5.5/xiaohongshu-login-linux-amd64",
+          "size": 11624632
+        },
+        {
+          "name": "xiaohongshu-login-windows-amd64.exe",
+          "url": "https://github.com/xpzouying/xiaohongshu-mcp/releases/download/v2.5.5/xiaohongshu-login-windows-amd64.exe",
+          "size": 10764288
+        },
+        {
+          "name": "xiaohongshu-mcp-darwin-arm64",
+          "url": "https://github.com/xpzouying/xiaohongshu-mcp/releases/download/v2.5.5/xiaohongshu-mcp-darwin-arm64",
+          "size": 16396466
+        },
+        {
+          "name": "xiaohongshu-mcp-linux-amd64",
+          "url": "https://github.com/xpzouying/xiaohongshu-mcp/releases/download/v2.5.5/xiaohongshu-mcp-linux-amd64",
+          "size": 16343224
+        },
+        {
+          "name": "xiaohongshu-mcp-windows-amd64.exe",
+          "url": "https://github.com/xpzouying/xiaohongshu-mcp/releases/download/v2.5.5/xiaohongshu-mcp-windows-amd64.exe",
+          "size": 15612416
+        }
+      ]
+    },
+    "biliup": {
+      "repository": "biliup/biliup",
+      "release": "v1.3.4",
+      "published_at": "2026-10-22T17:52:08Z",
+      "assets": [
+        {
+          "name": "biliupR-v1.3.4-aarch64-android.tar.xz",
+          "url": "https://github.com/biliup/biliup/releases/download/v1.3.4/biliupR-v1.3.4-aarch64-android.tar.xz",
+          "size": 29431472
+        },
+        {
+          "name": "biliupR-v1.3.4-aarch64-linux.tar.xz",
+          "url": "https://github.com/biliup/biliup/releases/download/v1.3.4/biliupR-v1.3.4-aarch64-linux.tar.xz",
+          "size": 27692484
+        },
+        {
+          "name": "biliupR-v1.3.4-aarch64-macos.tar.xz",
+          "url": "https://github.com/biliup/biliup/releases/download/v1.3.4/biliupR-v1.3.4-aarch64-macos.tar.xz",
+          "size": 26943040
+        },
+        {
+          "name": "biliupR-v1.3.4-arm-linux.tar.xz",
+          "url": "https://github.com/biliup/biliup/releases/download/v1.3.4/biliupR-v1.3.4-arm-linux.tar.xz",
+          "size": 28580556
+        },
+        {
+          "name": "biliupR-v1.3.4-x86_64-linux-musl.tar.xz",
+          "url": "https://github.com/biliup/biliup/releases/download/v1.3.4/biliupR-v1.3.4-x86_64-linux-musl.tar.xz",
+          "size": 30366868
+        },
+        {
+          "name": "biliupR-v1.3.4-x86_64-linux.tar.xz",
+          "url": "https://github.com/biliup/biliup/releases/download/v1.3.4/biliupR-v1.3.4-x86_64-linux.tar.xz",
+          "size": 30278872
+        },
+        {
+          "name": "biliupR-v1.3.4-x86_64-macos.tar.xz",
+          "url": "https://github.com/biliup/biliup/releases/download/v1.3.4/biliupR-v1.3.4-x86_64-macos.tar.xz",
+          "size": 29393888
+        },
+        {
+          "name": "biliupR-v1.3.4-x86_64-windows.zip",
+          "url": "https://github.com/biliup/biliup/releases/download/v1.3.4/biliupR-v1.3.4-x86_64-windows.zip",
+          "size": 41848441
+        },
+        {
+          "name": "biliup_1.3.4_x64-setup.exe",
+          "url": "https://github.com/biliup/biliup/releases/download/v1.3.4/biliup_1.3.4_x64-setup.exe",
+          "size": 72131373
+        },
+        {
+          "name": "biliup_1.3.4_x64_en-US.msi",
+          "url": "https://github.com/biliup/biliup/releases/download/v1.3.4/biliup_1.3.4_x64_en-US.msi",
+          "size": 99688448
+        }
+      ]
+    },
+    "ytuploader": {
+      "repository": "porjo/youtubeuploader",
+      "release": "v1.25.5",
+      "published_at": "2025-08-14T11:38:50Z",
+      "assets": [
+        {
+          "name": "youtubeuploader_1.25.5_checksums.txt",
+          "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_checksums.txt",
+          "size": 977
+        },
+        {
+          "name": "youtubeuploader_1.25.5_Darwin_amd64.tar.gz",
+          "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_Darwin_amd64.tar.gz",
+          "size": 11575421
+        },
+        {
+          "name": "youtubeuploader_1.25.5_Darwin_arm64.tar.gz",
+          "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_Darwin_arm64.tar.gz",
+          "size": 11059440
+        },
+        {
+          "name": "youtubeuploader_1.25.5_Freebsd_amd64.tar.gz",
+          "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_Freebsd_amd64.tar.gz",
+          "size": 11544969
+        },
+        {
+          "name": "youtubeuploader_1.25.5_Linux_amd64.tar.gz",
+          "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_Linux_amd64.tar.gz",
+          "size": 11640626
+        },
+        {
+          "name": "youtubeuploader_1.25.5_Linux_arm64.tar.gz",
+          "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_Linux_arm64.tar.gz",
+          "size": 10925013
+        },
+        {
+          "name": "youtubeuploader_1.25.5_Linux_armv6.tar.gz",
+          "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_Linux_armv6.tar.gz",
+          "size": 10740074
+        },
+        {
+          "name": "youtubeuploader_1.25.5_Linux_armv7.tar.gz",
+          "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_Linux_armv7.tar.gz",
+          "size": 10731412
+        },
+        {
+          "name": "youtubeuploader_1.25.5_Openbsd_amd64.tar.gz",
+          "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_Openbsd_amd64.tar.gz",
+          "size": 11526766
+        },
+        {
+          "name": "youtubeuploader_1.25.5_Windows_amd64.zip",
+          "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_Windows_amd64.zip",
+          "size": 11856017
+        }
+      ]
+    },
+    "spreado": {
+      "repository": "BadKid90s/Spreado",
+      "release": "v1.2.0",
+      "published_at": "2026-05-02T13:16:07Z",
+      "assets": [
+        {
+          "name": "spreado-linux-arm64",
+          "url": "https://github.com/BadKid90s/Spreado/releases/download/v1.2.0/spreado-linux-arm64",
+          "size": 59157560
+        },
+        {
+          "name": "spreado-linux-x64",
+          "url": "https://github.com/BadKid90s/Spreado/releases/download/v1.2.0/spreado-linux-x64",
+          "size": 63124760
+        },
+        {
+          "name": "spreado-macos-arm64",
+          "url": "https://github.com/BadKid90s/Spreado/releases/download/v1.2.0/spreado-macos-arm64",
+          "size": 52255504
+        },
+        {
+          "name": "spreado-macos-x64",
+          "url": "https://github.com/BadKid90s/Spreado/releases/download/v1.2.0/spreado-macos-x64",
+          "size": 53834528
+        },
+        {
+          "name": "spreado-windows-arm64.exe",
+          "url": "https://github.com/BadKid90s/Spreado/releases/download/v1.2.0/spreado-windows-arm64.exe",
+          "size": 45950583
+        },
+        {
+          "name": "spreado-windows-x64.exe",
+          "url": "https://github.com/BadKid90s/Spreado/releases/download/v1.2.0/spreado-windows-x64.exe",
+          "size": 46940184
+        }
+      ]
+    },
+    "postiz": {
+      "repository": "gitroomhq/postiz-app",
+      "release": "v2.25.3",
+      "published_at": "2026-10-24T14:16:43Z",
+      "assets": []
+    },
+    "mixpost": {
+      "repository": "inovector/mixpost",
+      "release": "2.6.0",
+      "published_at": "2026-03-16T10:06:21Z",
+      "assets": []
+    },
+    "matrixmedia": {
+      "repository": "hanliang97/MatrixMedia",
+      "release": "v0.13.2",
+      "published_at": "2026-10-24T11:33:55Z",
+      "assets": [
+        {
+          "name": "MatrixMedia-0.13.2-linux-aarch64.rpm",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-linux-aarch64.rpm",
+          "size": 63380369
+        },
+        {
+          "name": "MatrixMedia-0.13.2-linux-amd64.deb",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-linux-amd64.deb",
+          "size": 67042086
+        },
+        {
+          "name": "MatrixMedia-0.13.2-linux-arm64.AppImage",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-linux-arm64.AppImage",
+          "size": 100794779
+        },
+        {
+          "name": "MatrixMedia-0.13.2-linux-arm64.deb",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-linux-arm64.deb",
+          "size": 63354710
+        },
+        {
+          "name": "MatrixMedia-0.13.2-linux-arm64.tar.gz",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-linux-arm64.tar.gz",
+          "size": 95232276
+        },
+        {
+          "name": "MatrixMedia-0.13.2-linux-x64.tar.gz",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-linux-x64.tar.gz",
+          "size": 94475822
+        },
+        {
+          "name": "MatrixMedia-0.13.2-linux-x86_64.AppImage",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-linux-x86_64.AppImage",
+          "size": 99715038
+        },
+        {
+          "name": "MatrixMedia-0.13.2-linux-x86_64.rpm",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-linux-x86_64.rpm",
+          "size": 66971261
+        },
+        {
+          "name": "MatrixMedia-0.13.2-mac-arm64.dmg",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-mac-arm64.dmg",
+          "size": 96930350
+        },
+        {
+          "name": "MatrixMedia-0.13.2-mac-x64.dmg",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-mac-x64.dmg",
+          "size": 100379095
+        },
+        {
+          "name": "MatrixMedia-0.13.2-win-x64.exe",
+          "url": "https://github.com/hanliang97/MatrixMedia/releases/download/v0.13.2/MatrixMedia-0.13.2-win-x64.exe",
+          "size": 71623652
+        }
+      ]
+    },
+    "postbot": {
+      "repository": "gitcoffee-os/postbot",
+      "release": null,
+      "state": "no_release_or_unavailable"
+    },
+    "resin": {
+      "repository": "Resinat/Resin",
+      "release": "v1.3.0",
+      "published_at": "2026-10-21T16:30:36Z",
+      "assets": [
+        {
+          "name": "resin-darwin-amd64.tar.gz",
+          "url": "https://github.com/Resinat/Resin/releases/download/v1.3.0/resin-darwin-amd64.tar.gz",
+          "size": 14720911
+        },
+        {
+          "name": "resin-darwin-arm64.tar.gz",
+          "url": "https://github.com/Resinat/Resin/releases/download/v1.3.0/resin-darwin-arm64.tar.gz",
+          "size": 13745353
+        },
+        {
+          "name": "resin-linux-amd64.tar.gz",
+          "url": "https://github.com/Resinat/Resin/releases/download/v1.3.0/resin-linux-amd64.tar.gz",
+          "size": 14927277
+        },
+        {
+          "name": "resin-linux-arm64.tar.gz",
+          "url": "https://github.com/Resinat/Resin/releases/download/v1.3.0/resin-linux-arm64.tar.gz",
+          "size": 13627428
+        },
+        {
+          "name": "resin-windows-amd64.zip",
+          "url": "https://github.com/Resinat/Resin/releases/download/v1.3.0/resin-windows-amd64.zip",
+          "size": 14912811
+        }
+      ]
+    },
+    "tweepy": {
+      "repository": "tweepy/tweepy",
+      "release": "v4.17.0",
+      "published_at": "2026-07-02T19:10:57Z",
+      "assets": [
+        {
+          "name": "tweepy-4.17.0-py3-none-any.whl",
+          "url": "https://github.com/tweepy/tweepy/releases/download/v4.17.0/tweepy-4.17.0-py3-none-any.whl",
+          "size": 98989
+        },
+        {
+          "name": "tweepy-4.17.0-py3-none-any.whl.sigstore.json",
+          "url": "https://github.com/tweepy/tweepy/releases/download/v4.17.0/tweepy-4.17.0-py3-none-any.whl.sigstore.json",
+          "size": 9051
+        },
+        {
+          "name": "tweepy-4.17.0.tar.gz",
+          "url": "https://github.com/tweepy/tweepy/releases/download/v4.17.0/tweepy-4.17.0.tar.gz",
+          "size": 87772
+        },
+        {
+          "name": "tweepy-4.17.0.tar.gz.sigstore.json",
+          "url": "https://github.com/tweepy/tweepy/releases/download/v4.17.0/tweepy-4.17.0.tar.gz.sigstore.json",
+          "size": 9147
+        },
+        {
+          "name": "v4.17.0.tar.gz",
+          "url": "https://github.com/tweepy/tweepy/releases/download/v4.17.0/v4.17.0.tar.gz",
+          "size": 5919675
+        },
+        {
+          "name": "v4.17.0.tar.gz.sigstore.json",
+          "url": "https://github.com/tweepy/tweepy/releases/download/v4.17.0/v4.17.0.tar.gz.sigstore.json",
+          "size": 9003
+        },
+        {
+          "name": "v4.17.0.zip",
+          "url": "https://github.com/tweepy/tweepy/releases/download/v4.17.0/v4.17.0.zip",
+          "size": 6105802
+        },
+        {
+          "name": "v4.17.0.zip.sigstore.json",
+          "url": "https://github.com/tweepy/tweepy/releases/download/v4.17.0/v4.17.0.zip.sigstore.json",
+          "size": 9195
+        }
+      ]
+    },
+    "patchright": {
+      "repository": "Kaliiiiiiiiii-Vinyzu/patchright",
+      "release": "v1.64.1",
+      "published_at": "2026-10-15T13:33:38Z",
+      "assets": []
+    }
+  },
+  "installable_windows": [
+    {
+      "engine": "xhsmcp",
+      "version": "v2.5.5",
+      "url": "https://github.com/xpzouying/xiaohongshu-mcp/releases/download/v2.5.5/xiaohongshu-mcp-windows-amd64.exe",
+      "size": 15612416,
+      "binary": "xiaohongshu-mcp-windows-amd64.exe",
+      "archive": "raw",
+      "help_args": [
+        "--help"
+      ]
+    },
+    {
+      "engine": "ytuploader",
+      "version": "v1.25.5",
+      "url": "https://github.com/porjo/youtubeuploader/releases/download/v1.25.5/youtubeuploader_1.25.5_Windows_amd64.zip",
+      "size": 11856017,
+      "binary": "youtubeuploader.exe",
+      "archive": "zip",
+      "help_args": [
+        "--help"
+      ]
+    },
+    {
+      "engine": "spreado",
+      "version": "v1.2.0",
+      "url": "https://github.com/BadKid90s/Spreado/releases/download/v1.2.0/spreado-windows-x64.exe",
+      "size": 46940184,
+      "binary": "spreado-windows-x64.exe",
+      "archive": "raw",
+      "help_args": [
+        "--help"
+      ]
+    },
+    {
+      "engine": "resin",
+      "version": "v1.3.0",
+      "url": "https://github.com/Resinat/Resin/releases/download/v1.3.0/resin-windows-amd64.zip",
+      "size": 14912811,
+      "binary": "resin.exe",
+      "archive": "zip",
+      "help_args": [
+        "--help"
+      ]
+    },
+    {
+      "engine": "ffprobe",
+      "version": "5.1.0",
+      "url": "https://registry.npmjs.org/@ffprobe-installer/win32-x64/-/win32-x64-5.1.0.tgz",
+      "binary": "ffprobe.exe",
+      "archive": "tgz",
+      "help_args": [
+        "-version"
+      ]
+    }
+  ]
+}

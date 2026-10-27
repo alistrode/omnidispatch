@@ -1,0 +1,9 @@
+{
+  "hub": "http://127.0.0.1:8791",
+  "token": "由 register-agent 创建，不要使用示例 token",
+  "channels": {
+    "xapi-x": { "adapter": "xapi", "version": "api-v2" },
+    "xhsmcp-xiaohongshu": { "adapter": "xhsmcp", "version": "固定实际发行版本", "endpoint": "http://127.0.0.1:18060", "instance_account": "需与授权绑定一致" },
+    "ytuploader-youtube": { "adapter": "ytuploader", "version": "固定实际发行版本", "argv": ["E:\\xxm\\OmniDispatch\\release\\engines\\youtubeuploader.exe"], "ffprobe": "E:\\xxm\\OmniDispatch\\release\\engines\\ffprobe.exe" }
+  }
+}
