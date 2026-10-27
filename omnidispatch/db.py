@@ -71,6 +71,14 @@ class Asset(Record):
     kind: Mapped[str] = mapped_column(String(20))
     size: Mapped[int] = mapped_column(Integer)
     path: Mapped[str] = mapped_column(Text)
+class AssetUpload(Record):
+    __tablename__='asset_uploads'
+    owner: Mapped[str] = mapped_column(String(36),index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(20))
+    size: Mapped[int] = mapped_column(Integer)
+    state: Mapped[str] = mapped_column(String(20),default='open')
+    lease_until: Mapped[float] = mapped_column(Float,default=0)
 class Job(Record):
     __tablename__='jobs'
     key: Mapped[str] = mapped_column(String(120),unique=True)

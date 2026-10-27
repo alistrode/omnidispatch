@@ -14,11 +14,11 @@
 
 - 管理员登录、持久登录节流、CSRF/Origin 检查、TOTP/一次性恢复码、会话撤销。
 - 五平台账号及独立通道授权，Fernet 加密，公开接口不回显凭证。
-- 图片/视频素材上传、定时任务、幂等入队、同账号串行、租约续期与执行代次、审计与 SSE。
+- 8 MiB 分块图片/视频上传、跨刷新续传、分块重试与幂等合并、定时任务、幂等入队、同账号串行、租约续期与执行代次、审计与 SSE。
 - 提交前明确故障可以同账号切通道；提交过程中断转 needs_verify 并锁定账号，核验前不自动重发。
 - 限流冷却、账号授权过期暂停、风控暂停且不擅自换号/换 IP；未经验证的代理链路停止执行。
 - Agent 出站认证、撤销、只读引擎检查、任务固定版本、任务范围素材下载。
-- 每日发现上游版本、独立签名包隔离安装、防压缩包路径穿越、版本槽、24h/实际样本灰度门槛、切换/回滚元数据。
+- 每日发现上游版本、独立签名包隔离安装、防压缩包路径穿越、版本槽、24h/实际样本灰度门槛、同机 Agent 原生版本槽解析、切换与回滚。
 - Vue3 九个管理页面、响应式布局、无演示成功数据。
 
 ## 通道的真实边界
@@ -37,7 +37,9 @@ X API 适配器支持用户 OAuth token 的纯文本发布。youtubeuploader 使
 
 每日自动拉取 GitHub Releases 只产生候选。上传隔离安装包需 `X-Update-Signature` 和部署侧 OMNI_UPDATE_PUBLIC_KEY，zip 根目录包含 omni-engine.json（engine/version/adapter_protocol=1）。签名公钥不允许从包中注入。可使用 API multipart `/api/updates/{id}/stage` 上传。
 
-灰度需要标记“允许灰度”的账号和“灰度任务”，成功结果计入对应版本样本；至少 24 小时且三次成功、无失败才允许提升。Agent 必须已安装并上报匹配版本。当前自动更新没有实现跨节点二进制分发、通用凭证格式迁移、Hub 自更新和不可逆数据库自动降级，这些必须继续以明确实现和恢复验证为前提。没有信任公钥、测试账号或实际样本时保持阻塞。
+灰度需要标记“允许灰度”的账号和“灰度任务”，成功结果计入对应版本样本；至少 24 小时且三次成功、无失败才允许提升。Agent 必须已安装并上报匹配版本。可配置 OMNI_UPDATE_FEED_URL 指向同源 HTTPS 签名发布源，元数据有有效期、递增代次和签名；兼容补丁可自动下载、验证并创建隔离灰度通道。OMNI_AUTO_PROMOTE=1 仅提升自动策略允许且观察通过的补丁；手动大版本不会因此自动提升。Agent 配置中的 managed_engine 指定受管理引擎，并从同机 state/engine-versions 解析版本槽。普通任务不会使用灰度通道，灰度任务只使用明确允许的测试账号。
+
+当前自动更新没有实现跨节点二进制分发、通用凭证格式迁移、Hub 自更新和不可逆数据库自动降级，这些必须继续以明确实现和恢复验证为前提。没有信任公钥、测试账号或实际样本时保持阻塞。
 
 ## 源码运行与验证
 
@@ -48,3 +50,11 @@ Python 3.11+：`python -m venv .venv`，激活后 `pip install -r requirements.l
 验证：`python -m pytest -q`。测试使用独立临时数据库和测试凭证，绝不向平台提交。真实发布验收记录需单列。SQLite 备份：`python -m omnidispatch.cli --state state backup`，在线备份后执行完整性检查；vault.key 独立备份，不能只备数据库。PostgreSQL 使用 pg_dump/restore，Compose 模板尚需在目标生产环境验收。
 
 完整设计与参考来源见 DESIGN.md；安装和运行状态以 HANDOFF.md 为准。
+
+## 授权格式与部署入口
+
+凭证字段示例见 config/credentials.example.json，其中所有文字均为示例，不能当作有效授权。X 必须提供用户 OAuth token 与预期 user_id，YouTube 必须提供预期 channel_id、OAuth client_secrets 与 token。适配器在提交前核对实际身份。
+
+最新临时公网地址自动保存在 state/PUBLIC-URL.txt。当前云端对 trycloudflare 返回 Cloudflare 403，而远端电脑的当前域名健康回查为 200；固定生产域名尚未配置。当前完整目标的未完成事项详见 HANDOFF.md。
+
+容器启动：配置 deploy/compose.yml 所需环境变量后构建并启动，首次自动初始化管理员。普通网络使用系统 CA；受管理代理环境的构建使用 BuildKit proxy_ca 与 system_ca secret 挂载，CA 不写入镜像。镜像已实际使用非 root UID 10001 与 PostgreSQL 验证。

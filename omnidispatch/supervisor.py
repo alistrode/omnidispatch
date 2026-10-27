@@ -1,6 +1,7 @@
 """Supervise only processes started by this workspace. No global process termination."""
-import os,sys,subprocess,time,signal,socket,json,logging
+import os,sys,subprocess,time,signal,socket,json,logging,getpass,re
 from pathlib import Path
+from .windows_job import WindowsJob
 
 def main():
     root=Path(__file__).resolve().parent.parent;state=Path(os.getenv('OMNI_STATE',root/'state')).resolve();state.mkdir(exist_ok=True)
@@ -10,12 +11,26 @@ def main():
     config=state/'runtime-settings.json'
     settings=json.loads(config.read_text(encoding="utf-8-sig")) if config.exists() else {}
     for key,value in settings.get('environment',{}).items():
-        if key in {'OMNI_SECURE_COOKIE','OMNI_PUBLIC_ORIGIN','OMNI_DATABASE_URL','OMNI_UPDATE_PUBLIC_KEY'}:env[key]=str(value)
+        if key in {'OMNI_SECURE_COOKIE','OMNI_PUBLIC_ORIGIN','OMNI_DATABASE_URL','OMNI_UPDATE_PUBLIC_KEY','OMNI_UPDATE_FEED_URL','OMNI_AUTO_PROMOTE'}:env[key]=str(value)
+    administrator=False
+    if os.name=='nt':
+        import ctypes
+        administrator=bool(ctypes.windll.shell32.IsUserAnAdmin())
+    (state/'runtime-identity.json').write_text(json.dumps({'account':getpass.getuser(),'administrator':administrator,'pid':os.getpid(),'platform':sys.platform}))
     commands={'hub':[sys.executable,'-m','omnidispatch.cli','--state',str(state),'serve','--port','8791'],
               'agent':[sys.executable,'-m','omnidispatch.cli','--state',str(state),'agent','--config',str(state/'agent.json')]}
     tunnel=settings.get('cloudflared')
     if tunnel and Path(tunnel).is_file():commands['tunnel']=[tunnel,'tunnel','--no-autoupdate','--protocol','http2','--url','http://127.0.0.1:8791']
-    children={};streams={};stopping=False
+    overrides={}
+    resin=settings.get('resin')
+    if resin and Path(resin).is_file():
+        secrets=json.loads((state/'resin-secrets.private.json').read_text())
+        commands['resin']=[resin]
+        data=state/'resin'
+        for name in ['state','cache','logs']:(data/name).mkdir(parents=True,exist_ok=True)
+        overrides['resin']={'RESIN_ADMIN_TOKEN':secrets['admin_token'],'RESIN_PROXY_TOKEN':secrets['proxy_token'],'RESIN_LISTEN_ADDRESS':'127.0.0.1','RESIN_PORT':'2260','RESIN_STATE_DIR':str(data/'state'),'RESIN_CACHE_DIR':str(data/'cache'),'RESIN_LOG_DIR':str(data/'logs')}
+    job_object=WindowsJob()
+    children={};streams={};stopping=False;tunnel_offset=0;published_url=None
     def stop(*_):
         nonlocal stopping
         stopping=True
@@ -26,8 +41,17 @@ def main():
                 if name not in children or children[name].poll() is not None:
                     if name in children:logging.warning('%s exited %s; restarting',name,children[name].returncode);streams[name].close()
                     streams[name]=(state/(name+'.log')).open('ab')
-                    children[name]=subprocess.Popen(command,cwd=root,env=env,stdin=subprocess.DEVNULL,stdout=streams[name],stderr=subprocess.STDOUT)
+                    if name=='tunnel':
+                        tunnel_offset=streams[name].tell();published_url=None
+                        (state/'PUBLIC-URL.txt').unlink(missing_ok=True)
+                    children[name]=subprocess.Popen(command,cwd=root,env={**env,**overrides.get(name,{})},stdin=subprocess.DEVNULL,stdout=streams[name],stderr=subprocess.STDOUT)
+                    job_object.add(children[name])
                     logging.info('started %s pid=%s',name,children[name].pid)
+            if 'tunnel' in children and published_url is None:
+                with (state/'tunnel.log').open('rb') as source:
+                    source.seek(tunnel_offset);urls=re.findall(rb'https://[a-z0-9-]+\.trycloudflare\.com',source.read(1024*1024))
+                if urls:
+                    published_url=urls[-1].decode();(state/'PUBLIC-URL.txt').write_text(published_url+'\n')
             (state/'owned-processes.json').write_text(json.dumps({name:p.pid for name,p in children.items()}))
             time.sleep(3)
     finally:
@@ -37,5 +61,5 @@ def main():
             try:p.wait(timeout=20)
             except subprocess.TimeoutExpired:p.kill()
         for f in streams.values():f.close()
-        lock.close()
+        job_object.close();lock.close()
 if __name__=='__main__':main()

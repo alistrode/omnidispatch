@@ -55,6 +55,7 @@ class Queue:
                     if channel.health=='broken' and channel.open_until==0:continue
                     update=s.scalar(select(Update).where(Update.engine==channel.engine,Update.version==channel.version,Update.state.in_(['staged','canary'])))
                     if update and (update.state!='canary' or not job.payload.get('canary') or not account.canary_allowed):continue
+                    if bool(job.payload.get('canary'))!=bool(channel.capabilities.get('is_canary')):continue
                     if job.payload.get('canary') and not account.canary_allowed:continue
                     candidates.append((channel,credential))
                 if not candidates:
@@ -109,7 +110,10 @@ class Queue:
                 update=s.scalar(select(Update).where(Update.engine==channel.engine,Update.version==job.engine_version,Update.state=='canary').with_for_update())
                 if update:
                     key='live_successes' if job.state=='succeeded' else 'live_failures'
-                    update.data={**update.data,key:update.data.get(key,0)+1}
+                    by_channel={**update.data.get('by_channel',{})}
+                    counters={**by_channel.get(channel.id,{'successes':0,'failures':0})}
+                    counter='successes' if job.state=='succeeded' else 'failures';counters[counter]+=1;by_channel[channel.id]=counters
+                    update.data={**update.data,key:update.data.get(key,0)+1,'by_channel':by_channel}
             # Keep account fenced when an unknown publish is awaiting reconciliation.
             if job.state!='needs_verify':s.execute(delete(AccountLock).where(AccountLock.job_id==job.id))
             audit(s,'job.result',job.id,state=job.state,error_class=attempt.error_class)

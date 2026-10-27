@@ -98,7 +98,8 @@ def test_signed_archive_rejects_traversal_and_empty_trust(system,tmp_path):
     db,q,ids,clock,vault=system;manager=Updates(db,tmp_path)
     with db.tx() as s:u=Update(engine='sau',version='1.2.3',source='https://github.com/dreammis/social-auto-upload');s.add(u);s.flush();identifier=u.id
     path=tmp_path/'bad.zip'
-    with zipfile.ZipFile(path,'w') as z:z.writestr('../escape','bad')
+    with zipfile.ZipFile(path,'w') as z:
+        z.writestr('../escape','bad');z.writestr('omni-engine.json','{}')
     key=Ed25519PrivateKey.generate();public=base64.b64encode(key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode();signature=base64.b64encode(key.sign(path.read_bytes())).decode()
     with pytest.raises(ValueError):manager.stage(identifier,path,signature,'')
     with pytest.raises(ValueError):manager.stage(identifier,path,signature,public)
@@ -133,3 +134,69 @@ def test_staged_signature_does_not_activate_or_rewrite_old_task(system,tmp_path)
         assert s.get(Update,identifier).state=='staged'
         assert s.get(Job,job.id).engine_version=='1'
         assert s.get(Channel,'primary').version=='1'
+
+def test_managed_canary_and_rollback_leave_inflight_version_pinned(system,tmp_path):
+    db,q,(a,n),clock,vault=system;manager=Updates(db,tmp_path)
+    original=enqueue(q,a);old_lease=q.claim(n)
+    with db.tx() as s:
+        s.get(Account,a).canary_allowed=True
+        u=Update(engine='xapi',version='2.0.0',source='https://github.com');s.add(u);s.flush();identifier=u.id
+    archive=tmp_path/'native.zip'
+    with zipfile.ZipFile(archive,'w') as z:
+        z.writestr('omni-engine.json',json.dumps({'engine':'xapi','version':'2.0.0','adapter_protocol':1,'adapter':'xapi','executable':'engine.exe'}));z.writestr('engine.exe',b'test fixture, never execute')
+    key=Ed25519PrivateKey.generate();public=base64.b64encode(key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode();sig=base64.b64encode(key.sign(archive.read_bytes())).decode()
+    manager.stage(identifier,archive,sig,public);manager.transition(identifier,'canary')
+    from omnidispatch.managed import runtime_channels
+    config={'versions_dir':str(manager.root),'channels':{'primary':{'adapter':'xapi','version':'1','managed_engine':'xapi','argv':['old.exe']}}}
+    discovered=runtime_channels(config,tmp_path/'agent.json')
+    assert discovered['primary']['version']=='1' and discovered['primary--canary']['version']=='2.0.0'
+    with db.tx() as s:
+        assert s.get(Job,original.id).engine_version=='1'
+        assert s.get(Channel,'primary').version=='1'
+        assert s.get(Channel,'primary--canary').version=='2.0.0'
+    manager.transition(identifier,'rollback')
+    assert 'primary--canary' not in runtime_channels(config,tmp_path/'agent.json')
+    with db.tx() as s:assert s.get(Channel,'primary--canary').enabled is False
+
+def test_signed_feed_rejects_stale_generation_before_artifact_download(system,tmp_path,monkeypatch):
+    import asyncio,httpx
+    from omnidispatch.db import Setting
+    db,q,ids,clock,vault=system;manager=Updates(db,tmp_path)
+    with db.tx() as s:s.add(Setting(key='update_feed_generation',value={'generation':10}))
+    key=Ed25519PrivateKey.generate();public=base64.b64encode(key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode()
+    payload=json.dumps({'generation':9,'expires':time.time()+3600,'releases':[]}).encode();envelope={'payload':base64.b64encode(payload).decode(),'signature':base64.b64encode(key.sign(payload)).decode()}
+    original=httpx.AsyncClient
+    def make(*args,**kwargs):return original(*args,**kwargs,transport=httpx.MockTransport(lambda request:httpx.Response(200,json=envelope)))
+    monkeypatch.setattr('omnidispatch.updates.httpx.AsyncClient',make)
+    with pytest.raises(ValueError,match='回退'):asyncio.run(manager.sync_feed('https://updates.example.org/feed.json',public))
+
+def test_chunked_upload_retries_are_idempotent_and_conflicts_rejected(tmp_path):
+    app=create_app(tmp_path,background=False)
+    with app.state.db.tx() as s:s.add(Admin(username='admin',password=ph.hash('long-test-password')))
+    with TestClient(app) as c:
+        r=c.post('/api/login',json={'username':'admin','password':'long-test-password'});c.headers['x-csrf-token']=r.json()['csrf']
+        task=c.post('/api/assets/uploads',json={'name':'test.png','size':4}).json();path='/api/assets/uploads/'+task['id']
+        assert c.post(path+'/complete',json={}).status_code==409
+        assert c.put(path+'/0',content=b'abcd').status_code==200
+        assert c.put(path+'/0',content=b'abcd').status_code==200
+        assert c.put(path+'/0',content=b'wxyz').status_code==409
+        completed=c.post(path+'/complete',json={});assert completed.status_code==200
+        assert c.post(path+'/complete',json={}).json()['id']==completed.json()['id']
+        assert c.get('/api/assets').json()[0]['size']==4
+
+@pytest.mark.skipif(os.name!='nt',reason='Native Windows process lifecycle')
+def test_windows_job_closing_terminates_owned_child(tmp_path):
+    import sys,subprocess
+    from omnidispatch.windows_job import WindowsJob
+    script=tmp_path/'owned-child.py';started=tmp_path/'started';finished=tmp_path/'finished'
+    script.write_text("from pathlib import Path\nimport time\np=Path(__file__).parent\n(p/'started').write_text('ready')\ntime.sleep(60)\n(p/'finished').write_text('normal exit')\n")
+    job=WindowsJob();child=subprocess.Popen([sys.executable,str(script)])
+    try:
+        job.add(child);deadline=time.monotonic()+15
+        while not started.exists() and child.poll() is None and time.monotonic()<deadline:time.sleep(0.05)
+        assert started.exists() and child.poll() is None
+        job.close();child.wait(timeout=10)
+        assert not finished.exists() # Windows kill-on-close may legitimately report exit status zero.
+    finally:
+        job.close()
+        if child.poll() is None:child.kill();child.wait()

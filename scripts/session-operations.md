@@ -10,3 +10,9 @@
 8. Windows 安装脚本在首次部署前压缩备份现有 dev；展开工程包；使用独立 Python 执行测试；install-windows.ps1 创建专用普通账号、限制 state ACL、注册 OmniDispatch-Hub-Agent 启动任务。随机服务密码不打印、不提交。Hub 仅监听 127.0.0.1:8791，管理锁端口 8792。
 9. 可选公共测试入口由现有 cloudflared 的 quick tunnel 提供；只由本工程 supervisor 启动和恢复自己的子进程。隧道临时域名随重建变化，稳定生产域名需另行配置 Caddy 或命名隧道。
 10. 平台凭证、主密钥、初始密码、Agent token、临时私密下载 URL 一律留在仓库外或远端 state，不上传。
+
+追加：Windows 计划任务初始返回 0xc000015b，实际为专用账号缺少 SeBatchLogonRight。使用 grant-batch-logon.ps1 的 LSA API 仅向 OmniDispatchRun 授予该权利，未加入管理员组。数字 SID 的 icacls 授权使用 *SID 形式，所有关键 ACL 命令检查退出码。TaskScheduler Operational 日志用于定位错误，相关诊断脚本保存在 scripts/diagnostics。
+
+GitHub raw 域名在远端下载超时；最终使用 GitHub API 提供的私有 codeload 归档授权地址成功下载。曾准备的无凭据 Filebin 备用生成包已删除；最终传输使用私有 GitHub。临时授权 URL 未写入源码。未成功上传的空 GitHub draft release 已删除；正式代码及运行环境归档保存在项目分支。
+
+最终补充：停止初版父任务后确认曾残留本应用子进程。stop-windows.ps1 按专用账号及路径范围清理；WindowsJob 使用 kill-on-close 管理新子进程。Windows 原生测试通过后再启动更新后台。临时公网域名的更新由监督进程自动写入 PUBLIC-URL.txt。Cloudflare 云端 403 与远端当前域名 200 分别记录，不将本机 SSH 浏览器验证称为所有地区公网验收。

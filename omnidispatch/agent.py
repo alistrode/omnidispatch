@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 import httpx
 from .adapters import Adapter,PreflightError,check
+from .managed import runtime_channels
 log=logging.getLogger('omni.agent')
 class AgentRunner:
     def __init__(self,config):
@@ -11,13 +12,22 @@ class AgentRunner:
         if u.scheme!='https' and not (u.scheme=='http' and u.hostname in {'localhost','127.0.0.1','::1'}):raise ValueError('Hub 必须使用 HTTPS；仅本机允许 HTTP')
         self.client=httpx.Client(base_url=hub,headers={'Authorization':'Bearer '+self.config['token']},timeout=40,follow_redirects=False)
         self.work=Path(self.config.get('work',self.path.parent/'jobs')).resolve();self.work.mkdir(parents=True,exist_ok=True)
+        self._caps_cache=None;self._caps_at=0;self._caps_key=None
     def post(self,path,data=None):
         response=self.client.post(path,json=data or {});response.raise_for_status();return response.json()
     def capabilities(self):
         result={}
-        for key,cfg in self.config.get('channels',{}).items():
-            result[key]={**check(cfg),'version':cfg.get('version'),'egress_modes':['direct','trusted-static','resin'] if cfg['adapter'] in {'xapi','biliup'} else ['direct']}
-        return {'channels':result,'platform':os.name,'adapter_protocol':1}
+        self.config=json.loads(self.path.read_text(encoding='utf-8-sig'))
+        self.channels=runtime_channels(self.config,self.path)
+        fingerprint=json.dumps(self.channels,sort_keys=True)
+        if fingerprint==self._caps_key and self._caps_cache is not None and time.monotonic()-self._caps_at<60:return self._caps_cache
+        checks={}
+        for key,cfg in self.channels.items():
+            signature=json.dumps(cfg,sort_keys=True)
+            if signature not in checks:checks[signature]=check(cfg)
+            result[key]={**checks[signature],'version':cfg.get('version'),'egress_modes':['direct','trusted-static','resin'] if cfg['adapter'] in {'xapi','biliup'} else ['direct']}
+        self._caps_key=fingerprint;self._caps_at=time.monotonic();self._caps_cache={'channels':result,'platform':os.name,'adapter_protocol':1}
+        return self._caps_cache
     def run(self,once=False):
         failures=0
         try:
@@ -40,13 +50,15 @@ class AgentRunner:
                 except Exception:lost.set();return
         thread=threading.Thread(target=keepalive,daemon=True);thread.start();submitted=False
         try:
-            cfg=self.config['channels'].get(job['channel'])
+            cfg=self.channels.get(job['channel'])
             if not cfg:raise PreflightError('engine_missing','通道配置不存在')
             with tempfile.TemporaryDirectory(prefix=job['id']+'-',dir=self.work) as folder:
                 work=Path(folder);files=[]
                 for index,asset in enumerate(job['payload'].get('assets',[])):
                     # Download only job-scoped objects from the authenticated Hub, never arbitrary content URLs.
-                    target=work/(str(index)+'.'+('mp4' if job['payload']['kind']=='video' else 'jpg'));size=0
+                    suffix=job.get('assets_meta',{}).get(asset,{}).get('suffix','.mp4' if job['payload']['kind']=='video' else '.jpg')
+                    if suffix not in {'.mp4','.mov','.webm','.mkv','.jpg','.jpeg','.png','.webp'}:raise PreflightError('invalid_input','素材扩展名不受支持')
+                    target=work/(str(index)+suffix);size=0
                     with self.client.stream('GET',f'/agent/assets/{asset}',params={'job_id':job['id'],'generation':job['generation']}) as response:
                         response.raise_for_status()
                         with target.open('xb') as f:

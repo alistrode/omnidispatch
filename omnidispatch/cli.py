@@ -13,7 +13,7 @@ def main():
     args=p.parse_args();state=Path(args.state).resolve();state.mkdir(parents=True,exist_ok=True)
     if args.command=='agent':
         from .agent import AgentRunner
-        logging.basicConfig(level=logging.INFO);AgentRunner(args.config).run(args.once);return
+        logging.basicConfig(level=logging.INFO);logging.getLogger('httpx').setLevel(logging.WARNING);AgentRunner(args.config).run(args.once);return
     url=os.getenv('OMNI_DATABASE_URL',f'sqlite:///{state / "hub.db"}');db=Database(url);db.initialize();Vault(state)
     if args.command in {'init','reset-admin'}:
         secret=new_token()
@@ -38,7 +38,7 @@ def main():
     elif args.command=='serve':
         import uvicorn
         from .app import create_app
-        uvicorn.run(create_app(state),host=args.host,port=args.port,proxy_headers=True,forwarded_allow_ips="127.0.0.1")
+        uvicorn.run(create_app(state),host=args.host,port=args.port,proxy_headers=True,forwarded_allow_ips="127.0.0.1",access_log=False)
     elif args.command=='backup':
         if db.engine.dialect.name!='sqlite':raise SystemExit('PostgreSQL: use pg_dump and encrypted external backup storage')
         folder=state.parent/'backups';folder.mkdir(exist_ok=True);target=folder/('hub-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')+'.sqlite3')

@@ -7,7 +7,7 @@ if out.exists():raise SystemExit('Output must not exist')
 out.mkdir(parents=True)
 for name in ['omnidispatch','config','scripts']:
     shutil.copytree(source/name,out/name,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
-for name in ['Start.cmd','README.md','DESIGN.md','requirements.lock.txt','THIRD-PARTY.md']:
+for name in ['Start.cmd','README.md','DESIGN.md','requirements.lock.txt','THIRD-PARTY.md','HANDOFF.md']:
     if (source/name).exists():shutil.copy2(source/name,out/name)
 rt=out/'runtime';rt.mkdir()
 with zipfile.ZipFile(runtime) as z:z.extractall(rt)

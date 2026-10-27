@@ -25,6 +25,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    command: ["sh", "-c", "python -m omnidispatch.cli --state /app/state init && exec python -m omnidispatch.cli --state /app/state serve --host 0.0.0.0"]
     restart: unless-stopped
 volumes:
   database:

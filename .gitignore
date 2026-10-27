@@ -11,3 +11,10 @@ state/
 runtime/
 *.zip
 *.egg-info/
+
+*.private*
+*.pem
+*CREDENTIALS*
+backups/
+engines/
+validation-tools/

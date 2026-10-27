@@ -6,9 +6,10 @@ import pyotp
 from fastapi import FastAPI,Request,HTTPException,UploadFile,File,Depends
 from fastapi.responses import FileResponse,StreamingResponse,JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 from sqlalchemy import select,delete,func
 from pydantic import BaseModel,Field,ConfigDict
-from .db import Database,Admin,Session,Recovery,LoginGuard,Account,Credential,Channel,Job,Attempt,Asset,Agent,Audit,Update,audit,uid
+from .db import Database,Admin,Session,Recovery,LoginGuard,Account,Credential,Channel,Job,Attempt,Asset,AssetUpload,Agent,Audit,Update,audit,uid
 from .catalog import seed,PLATFORMS
 from .queue import Queue,Conflict
 from .security import Vault,ph,verify,new_token
@@ -21,6 +22,7 @@ class AccountIn(Strict):label:str=Field(min_length=1,max_length=120);platform:st
 class CredIn(Strict):channel_id:str;value:dict
 class ChannelIn(Strict):version:str=Field(min_length=1,max_length=100);priority:int=Field(default=50,ge=0,le=100);enabled:bool=False
 class JobIn(Strict):idempotency_key:str=Field(min_length=8,max_length=120);account_id:str;title:str=Field(min_length=1,max_length=300);description:str=Field(default='',max_length=10000);kind:str='video';assets:list[str]=Field(default_factory=list,max_length=20);due:float|None=None;options:dict=Field(default_factory=dict);canary:bool=False
+class UploadIn(Strict):name:str=Field(min_length=1,max_length=200);size:int=Field(gt=0,le=2*1024**3)
 class Action(Strict):action:str;remote_id:str|None=None
 class AgentIn(Strict):label:str=Field(min_length=1,max_length=120)
 class Beat(Strict):capabilities:dict
@@ -37,13 +39,25 @@ def create_app(state=None,database_url=None,*,background=True):
     async def maintenance():
         while True:
             try:
-                with db.tx() as s:queue.expire(s);s.execute(delete(Session).where(Session.expires<time.time()))
+                with db.tx() as s:
+                    queue.expire(s);s.execute(delete(Session).where(Session.expires<time.time()))
+                    stale=s.scalars(select(AssetUpload).where(AssetUpload.state=='open',AssetUpload.created<time.time()-86400)).all()
+                    stale_ids=[u.id for u in stale]
+                    for upload in stale:s.delete(upload)
+                import shutil
+                for identifier in stale_ids:shutil.rmtree(state/'uploads'/identifier,ignore_errors=True)
             except Exception:pass
             await asyncio.sleep(10)
     async def update_loop():
         await asyncio.sleep(20)
         while True:
-            await updates.discover();await asyncio.sleep(86400+secrets.randbelow(1800))
+            try:
+                feed=os.getenv('OMNI_UPDATE_FEED_URL','');public_key=os.getenv('OMNI_UPDATE_PUBLIC_KEY','')
+                if feed:await updates.sync_feed(feed,public_key,os.getenv('OMNI_AUTO_PROMOTE','0')=='1')
+                else:await updates.discover()
+            except Exception as e:
+                with db.tx() as s:audit(s,'update.check_failed','publisher',error_class=type(e).__name__)
+            await asyncio.sleep((3600 if os.getenv('OMNI_UPDATE_FEED_URL') else 86400)+secrets.randbelow(300))
     @contextlib.asynccontextmanager
     async def lifespan(app):
         tasks=[asyncio.create_task(maintenance()),asyncio.create_task(update_loop())] if background else []
@@ -53,6 +67,7 @@ def create_app(state=None,database_url=None,*,background=True):
             with contextlib.suppress(asyncio.CancelledError):await task
         db.engine.dispose()
     app=FastAPI(title='OmniDispatch',version='0.1.0',lifespan=lifespan,docs_url=None,redoc_url=None)
+    app.add_middleware(GZipMiddleware,minimum_size=1000)
     app.state.db=db;app.state.vault=vault;app.state.queue=queue
     secure=os.getenv('OMNI_SECURE_COOKIE','0')=='1'
     @app.middleware('http')
@@ -63,7 +78,7 @@ def create_app(state=None,database_url=None,*,background=True):
             expected=os.getenv('OMNI_PUBLIC_ORIGIN',str(request.base_url).rstrip('/'))
             if origin and origin!=expected:return JSONResponse({'detail':'Origin 校验失败'},status_code=403)
         response=await call_next(request)
-        response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'"})
+        response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Cache-Control':'public, max-age=31536000, immutable' if request.url.path.startswith('/assets/') else 'no-store','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'"})
         return response
     @app.exception_handler(Conflict)
     async def conflict(_,e):return JSONResponse({'detail':str(e)},status_code=409)
@@ -156,7 +171,7 @@ def create_app(state=None,database_url=None,*,background=True):
     @app.get('/api/overview')
     def overview(user=Depends(admin)):
         with db.tx() as s:
-            jobs=s.scalars(select(Job)).all();channels=s.scalars(select(Channel)).all();agents=s.scalars(select(Agent)).all()
+            jobs=s.scalars(select(Job)).all();channels=[c for c in s.scalars(select(Channel)) if not c.capabilities.get('is_canary')];agents=s.scalars(select(Agent)).all()
             return {'jobs':dict(Counter(j.state for j in jobs)),'accounts':s.scalar(select(func.count()).select_from(Account)),
               'agents_online':sum(a.enabled and a.last_seen>time.time()-90 for a in agents),
               'platforms':[{'id':p,'label':label,'candidates':sum(c.platform==p for c in channels),'verified':sum(c.platform==p and c.enabled and c.health in {'healthy','degraded'} for c in channels),'fault_domains':len({c.capabilities.get('fault_domain') for c in channels if c.platform==p and c.enabled and c.health in {'healthy','degraded'}})} for p,label in PLATFORMS.items()]}
@@ -217,6 +232,93 @@ def create_app(state=None,database_url=None,*,background=True):
             channel.health='healthy';channel.failures=0;channel.open_until=0;channel.evidence={'method':'administrator_attestation','remote_id':data.remote_id,'at':time.time(),'version':channel.version}
             audit(s,'channel.live_attested',channel_id,remote_id=data.remote_id)
         return {'ok':True}
+    chunk_size=8*1024*1024
+    @app.post('/api/assets/uploads')
+    def begin_upload(data:UploadIn,user=Depends(admin)):
+        suffix=Path(data.name).suffix.lower()
+        kind='images' if suffix in {'.jpg','.jpeg','.png','.webp'} else 'video' if suffix in {'.mp4','.mov','.webm','.mkv'} else None
+        if not kind:raise ValueError('不支持的素材格式')
+        with db.tx() as s:
+            active=s.scalar(select(func.count()).select_from(AssetUpload).where(AssetUpload.owner==user,AssetUpload.state=='open'))
+            if active>=10:raise ValueError('未完成上传过多，请先完成已有上传')
+            upload=AssetUpload(owner=user,name=Path(data.name).name,size=data.size,kind=kind);s.add(upload);s.flush()
+            folder=state/'uploads'/upload.id;folder.mkdir(parents=True)
+            return {'id':upload.id,'chunk_size':chunk_size,'chunks':(data.size+chunk_size-1)//chunk_size}
+    @app.put('/api/assets/uploads/{upload_id}/{index}')
+    async def upload_chunk(upload_id:str,index:int,request:Request,user=Depends(admin)):
+        with db.tx() as s:
+            upload=s.get(AssetUpload,upload_id)
+            if not upload or upload.owner!=user:raise HTTPException(404,'上传任务不存在')
+            if upload.state!='open':raise Conflict('上传已完成或正在合并')
+            count=(upload.size+chunk_size-1)//chunk_size
+            if index<0 or index>=count:raise ValueError('无效分块编号')
+            expected=min(chunk_size,upload.size-index*chunk_size)
+        folder=state/'uploads'/upload_id;temporary=folder/(str(index)+'.'+uid()+'.part');target=folder/(str(index)+'.chunk');size=0
+        try:
+            with temporary.open('xb') as f:
+                async for chunk in request.stream():
+                    size+=len(chunk)
+                    if size>expected:raise ValueError('分块大小超过约定')
+                    f.write(chunk)
+            if size!=expected:raise ValueError('分块大小不完整')
+            if target.exists():
+                import filecmp
+                if not filecmp.cmp(target,temporary,shallow=False):raise Conflict('该编号已保存不同的分块内容')
+            else:os.replace(temporary,target)
+        finally:temporary.unlink(missing_ok=True)
+        return {'ok':True,'index':index}
+    @app.get('/api/assets/uploads/{upload_id}')
+    def upload_status(upload_id:str,user=Depends(admin)):
+        with db.tx() as s:
+            upload=s.get(AssetUpload,upload_id)
+            if not upload or upload.owner!=user:raise HTTPException(404,'上传任务不存在')
+            folder=state/'uploads'/upload_id;count=(upload.size+chunk_size-1)//chunk_size
+            present=[i for i in range(count) if (folder/(str(i)+'.chunk')).is_file() and (folder/(str(i)+'.chunk')).stat().st_size==min(chunk_size,upload.size-i*chunk_size)]
+            return {'id':upload.id,'chunk_size':chunk_size,'chunks':count,'present':present,'state':upload.state}
+    @app.delete('/api/assets/uploads/{upload_id}')
+    def cancel_upload(upload_id:str,user=Depends(admin)):
+        import shutil
+        with db.tx() as s:
+            upload=s.get(AssetUpload,upload_id,with_for_update=True)
+            if not upload or upload.owner!=user:raise HTTPException(404,'上传任务不存在')
+            if upload.state!='open':raise Conflict('合并中或已完成的素材不能取消')
+            s.delete(upload)
+        shutil.rmtree(state/'uploads'/upload_id,ignore_errors=True)
+        return {'ok':True}
+    @app.post('/api/assets/uploads/{upload_id}/complete')
+    def finish_upload(upload_id:str,user=Depends(admin)):
+        import shutil
+        with db.tx() as s:
+            upload=s.get(AssetUpload,upload_id,with_for_update=True)
+            if not upload or upload.owner!=user:raise HTTPException(404,'上传任务不存在')
+            if upload.state=='completed':return public(s.get(Asset,upload_id),('path',))
+            if upload.state=='assembling' and upload.lease_until>time.time():raise Conflict('素材正在合并，请稍后查询')
+            count=(upload.size+chunk_size-1)//chunk_size;folder=state/'uploads'/upload_id
+            for index in range(count):
+                part=folder/(str(index)+'.chunk')
+                if not part.is_file() or part.stat().st_size!=min(chunk_size,upload.size-index*chunk_size):raise Conflict('素材分块尚未完整')
+            upload.state='assembling';upload.lease_until=time.time()+600
+            name,kind,size=upload.name,upload.kind,upload.size
+        assets_dir=state/'assets';assets_dir.mkdir(exist_ok=True);target=assets_dir/(upload_id+Path(name).suffix.lower());temporary=assets_dir/(upload_id+'.'+uid()+'.assembling')
+        try:
+            # Large media copies deliberately run outside the queue database transaction.
+            with temporary.open('xb') as output:
+                for index in range(count):
+                    with (folder/(str(index)+'.chunk')).open('rb') as source:shutil.copyfileobj(source,output,length=1024*1024)
+            os.replace(temporary,target)
+            with db.tx() as s:
+                upload=s.get(AssetUpload,upload_id,with_for_update=True);asset=s.get(Asset,upload_id)
+                if not asset:
+                    asset=Asset(id=upload_id,name=name,kind=kind,size=size,path=str(target));s.add(asset);s.flush();audit(s,'asset.uploaded',asset.id,size=size,chunked=True)
+                upload.state='completed';upload.lease_until=0;result=public(asset,('path',))
+        except BaseException:
+            with db.tx() as s:
+                upload=s.get(AssetUpload,upload_id)
+                if upload and upload.state=='assembling':upload.state='open';upload.lease_until=0
+            raise
+        finally:temporary.unlink(missing_ok=True)
+        shutil.rmtree(folder,ignore_errors=True)
+        return result
     @app.get('/api/assets')
     def assets(user=Depends(admin)):
         with db.tx() as s:return [public(a,('path',)) for a in s.scalars(select(Asset).order_by(Asset.created.desc()))]
@@ -278,6 +380,8 @@ def create_app(state=None,database_url=None,*,background=True):
     @app.post('/agent/claim')
     def claim(identity=Depends(agent_auth)):
         job=queue.claim(identity)
+        if job:
+            with db.tx() as s:job['assets_meta']={identifier:{'suffix':Path(s.get(Asset,identifier).name).suffix.lower()} for identifier in job['payload'].get('assets',[]) if s.get(Asset,identifier)}
         if job and 'secret' in job['egress']:job['egress']={**job['egress'],**vault.decrypt(job['egress']['secret'])};job['egress'].pop('secret',None)
         return {'job':job}
     @app.post('/agent/jobs/{job_id}/heartbeat')
@@ -312,6 +416,9 @@ def create_app(state=None,database_url=None,*,background=True):
                 if not items:yield ': heartbeat\n\n'
                 await asyncio.sleep(2)
         return StreamingResponse(stream(),media_type='text/event-stream',headers={'X-Accel-Buffering':'no'})
+    @app.get('/api/updates/policy')
+    def update_policy(user=Depends(admin)):
+        return {'trusted_key_configured':bool(os.getenv('OMNI_UPDATE_PUBLIC_KEY')),'publisher_feed_configured':bool(os.getenv('OMNI_UPDATE_FEED_URL')),'auto_promote':os.getenv('OMNI_AUTO_PROMOTE','0')=='1','minimum_canary_hours':24,'minimum_successes_per_active_channel':3}
     @app.get('/api/updates')
     def update_list(user=Depends(admin)):
         with db.tx() as s:return [public(u) for u in s.scalars(select(Update).order_by(Update.created.desc()))]
