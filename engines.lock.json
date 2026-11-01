@@ -415,5 +415,13 @@
         "-version"
       ]
     }
-  ]
+  ],
+  "local_source_builds": {
+    "xhsmcp": {
+      "version": "v2.5.5-omni",
+      "source_commit": "a5c8f7799980ba1fdd501999843eb2d17e4c9a9f",
+      "manifest": "vendor/xhsmcp/BUILD.json",
+      "upstream_assets": "retained historical lock; not the current local build"
+    }
+  }
 }

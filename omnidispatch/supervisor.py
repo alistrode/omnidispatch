@@ -21,7 +21,7 @@ def main():
               'agent':[sys.executable,'-m','omnidispatch.cli','--state',str(state),'agent','--config',str(state/'agent.json')]}
     tunnel=settings.get('cloudflared')
     if tunnel and Path(tunnel).is_file():commands['tunnel']=[tunnel,'tunnel','--no-autoupdate','--protocol','http2','--url','http://127.0.0.1:8791']
-    overrides={}
+    overrides={};working_directories={}
     resin=settings.get('resin')
     if resin and Path(resin).is_file():
         secrets=json.loads((state/'resin-secrets.private.json').read_text())
@@ -37,6 +37,31 @@ def main():
     signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
     try:
         while not stopping:
+            # Account browser services survive a normal desktop restart and are
+            # recreated after a machine reboot without requiring another login.
+            from .local_engines import read_json,UUID,CHANNEL
+            from urllib.parse import urlsplit
+            config=read_json(state/'agent.json');instances=read_json(state/'engine-instances.json')
+            for channel,accounts in instances.items():
+                base=config.get('channels',{}).get(channel,{})
+                if not CHANNEL.fullmatch(channel) or base.get('adapter')!='xhsmcp':continue
+                binary=Path((base.get('argv') or [''])[0]).resolve()
+                if not binary.is_file() or not binary.is_relative_to((root/'engines').resolve()):continue
+                for account,item in accounts.items():
+                    if not UUID.fullmatch(account):continue
+                    url=urlsplit(item.get('endpoint',''))
+                    if url.scheme!='http' or url.hostname!='127.0.0.1' or not url.port:continue
+                    name='xhs-'+channel+'-'+account
+                    if name not in commands:
+                        try:
+                            with socket.create_connection(('127.0.0.1',url.port),timeout=.2):continue
+                        except OSError:pass
+                        folder=state/'engine-accounts'/channel/account
+                        if not (folder/'cookies.json').is_file():continue
+                        from .browser_provision import bundled_xhs_browser
+                        overrides[name]={'OMNI_XHS_BROWSER':bundled_xhs_browser()}
+                        commands[name]=[str(binary),'-port','127.0.0.1:'+str(url.port),'-headless=true']
+                        working_directories[name]=folder
             for name,command in commands.items():
                 if name not in children or children[name].poll() is not None:
                     if name in children:logging.warning('%s exited %s; restarting',name,children[name].returncode);streams[name].close()
@@ -44,7 +69,7 @@ def main():
                     if name=='tunnel':
                         tunnel_offset=streams[name].tell();published_url=None
                         (state/'PUBLIC-URL.txt').unlink(missing_ok=True)
-                    children[name]=subprocess.Popen(command,cwd=root,env={**env,**overrides.get(name,{})},stdin=subprocess.DEVNULL,stdout=streams[name],stderr=subprocess.STDOUT)
+                    children[name]=subprocess.Popen(command,cwd=working_directories.get(name,root),env={**env,**overrides.get(name,{})},stdin=subprocess.DEVNULL,stdout=streams[name],stderr=subprocess.STDOUT)
                     job_object.add(children[name])
                     logging.info('started %s pid=%s',name,children[name].pid)
             if 'tunnel' in children and published_url is None:

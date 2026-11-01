@@ -24,7 +24,13 @@ class AgentRunner:
         checks={}
         for key,cfg in self.channels.items():
             signature=json.dumps(cfg,sort_keys=True)
-            if signature not in checks:checks[signature]=check(cfg)
+            if signature not in checks:
+                checks[signature]=check(cfg)
+                if cfg.get('adapter')=='xhsmcp':
+                    from .local_engines import configured_instances
+                    for instance in configured_instances(self.path.parent,key):
+                        candidate=check({**cfg,**instance})
+                        if candidate['ready']:checks[signature]=candidate;break
             result[key]={**checks[signature],'version':cfg.get('version'),'egress_modes':['direct','trusted-static','resin'] if cfg['adapter'] in {'xapi','biliup'} else ['direct']}
         self._caps_key=fingerprint;self._caps_at=time.monotonic();self._caps_cache={'channels':result,'platform':os.name,'adapter_protocol':1}
         return self._caps_cache
@@ -51,6 +57,11 @@ class AgentRunner:
         thread=threading.Thread(target=keepalive,daemon=True);thread.start();submitted=False
         try:
             cfg=self.channels.get(job['channel'])
+            if cfg:
+                from .local_engines import instance_config
+                try:cfg=instance_config(self.path.parent,cfg,job['channel'],job['account_id'])
+                except ValueError as e:raise PreflightError('auth_expired',str(e))
+            if cfg and cfg.get('adapter')=='desktopweb':raise PreflightError('desktop_required','在本机桌面继续')
             if not cfg:raise PreflightError('engine_missing','通道配置不存在')
             with tempfile.TemporaryDirectory(prefix=job['id']+'-',dir=self.work) as folder:
                 work=Path(folder);files=[]

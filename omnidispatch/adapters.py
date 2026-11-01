@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json,os,re,subprocess,tempfile,shutil
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit,parse_qs
 import httpx
 class PreflightError(Exception):
     def __init__(self,kind,message):self.kind=kind;super().__init__(message)
@@ -17,14 +17,21 @@ def executable(cfg):
 
 def check(cfg):
     try:
+        if cfg.get('adapter')=='desktopweb':return {'ready':bool(cfg.get('argv') and Path(cfg['argv'][0]).is_file()),'note':'本机桌面填写与确认，不表示自动发布已验证'}
         if cfg.get('adapter')=='xapi':return {'ready':True,'note':'官方 HTTP API；账号授权独立校验'}
         if cfg.get('adapter') in {'xhsmcp','postiz'}:
             url=cfg.get('endpoint','');parsed=urlsplit(url)
             if parsed.scheme not in {'http','https'} or parsed.username or parsed.password:raise ValueError('非法端点')
             if parsed.scheme=='http' and parsed.hostname not in {'localhost','127.0.0.1','::1'}:raise ValueError('远端引擎必须 HTTPS')
             response=httpx.get(url.rstrip('/')+('/api/v1/login/status' if cfg['adapter']=='xhsmcp' else '/public/v1/integrations'),timeout=10,follow_redirects=False)
-            return {'ready':response.status_code<500,'note':'服务可达；凭证和真实发布尚需验证'}
-        argv=executable(cfg);result=subprocess.run([*argv,'--help'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=15,shell=False)
+            return {'ready':response.status_code==200 and (cfg['adapter']!='xhsmcp' or response.json().get('success') is True),'note':'服务已响应；登录和真实发布单独核验'}
+        argv=executable(cfg)
+        if cfg.get('adapter')=='spreado':
+            probe=subprocess.run([*argv,'list'],capture_output=True,timeout=15,shell=False,cwd=cfg.get('cwd'))
+            output=(probe.stdout+probe.stderr).decode('utf-8','replace')
+            if probe.returncode or not re.search(r'(xiaohongshu|shipinhao|tencent|小红书|视频号)',output,re.I):
+                return {'ready':False,'note':'未发现已安装的平台适配器'}
+        result=subprocess.run([*argv,'--help'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=15,shell=False)
         return {'ready':result.returncode==0,'note':'只读帮助检查'}
     except Exception as e:return {'ready':False,'note':type(e).__name__}
 
@@ -32,7 +39,9 @@ class Adapter:
     def __init__(self,cfg,job,files,work):self.cfg=cfg;self.job=job;self.files=files;self.work=Path(work);self.payload=job['payload'];self.credential=job['credential']
     def preflight(self):
         adapter=self.cfg['adapter'];opts=self.payload.get('options',{})
-        allowed={'xapi':set(),'xhsmcp':{'topics'},'ytuploader':{'visibility','tags','categoryId','madeForKids'},'biliup':{'tid','tags','copyright'},'sau':{'tid','tags','visibility','playlist','collection'},'spreado':{'tags'},'matrixmedia':{'phone','tags','short_title'},'postiz':{'integration_id'}}.get(adapter,set())
+        action=self.payload.get('action','publish')
+        if action!='publish' and adapter not in {'xapi','xhsmcp'}:raise PreflightError('invalid_input','此引擎不能发表评论，请选择评论通道')
+        allowed={'xapi':set(),'xhsmcp':{'topics','tags','xsec_token','target_user_id'},'ytuploader':{'visibility','tags','categoryId','madeForKids'},'biliup':{'tid','tags','copyright'},'sau':{'tags','category','video_mark','originality','visibility','tid','collection'},'spreado':{'tags'},'matrixmedia':{'phone','tags','short_title'},'postiz':{'integration_id'}}.get(adapter,set())
         if set(opts)-allowed:raise PreflightError('invalid_input','此通道未实现所选参数，拒绝静默丢失')
         if self.job['egress'].get('mode','direct')!='direct':
             # Until each adapter's whole subprocess/browser path is verified, fail closed.
@@ -41,23 +50,47 @@ class Adapter:
         if self.job['engine_version']!=self.cfg.get('version'):raise PreflightError('engine_incompatible','任务固定版本与本机配置不符')
         if adapter=='xapi':
             if self.payload['kind']!='text':raise PreflightError('invalid_input','X API 初版仅接受纯文本')
+            if action!='publish':
+                from .platform_specs import allowed_url
+                target=self.payload.get('target_url','')
+                match=re.search(r'/status/(\d+)',urlsplit(target).path)
+                if not allowed_url('x',target) or not match:raise PreflightError('invalid_input','需提供 X 原帖的完整状态链接')
+                self.reply_to=self.payload.get('target_comment_id') if action=='reply' else match.group(1)
+                if not str(self.reply_to).isdigit():raise PreflightError('invalid_input','X 回复目标须为实际帖子 ID')
             if not self.credential.get('access_token') or not self.credential.get('user_id'):raise PreflightError('auth_expired','需用户 OAuth access_token 和预期 user_id')
             proxy=self.job['egress'].get('proxy')
             with httpx.Client(timeout=30,proxy=proxy,trust_env=not bool(proxy)) as client:
                 identity=client.get('https://api.x.com/2/users/me',headers={'Authorization':'Bearer '+self.credential['access_token']})
             if identity.status_code!=200 or str(identity.json().get('data',{}).get('id'))!=str(self.credential['user_id']):raise PreflightError('auth_expired','实际 X 账号与固定授权身份不符或权限不足')
         elif adapter=='xhsmcp':
+            if not self.payload.get('description','').strip():raise PreflightError('invalid_input','小红书正文不能为空')
+            if action=='publish' and (self.payload['kind'] not in {'images','video'} or not self.files):raise PreflightError('invalid_input','小红书需要图片或单个视频')
+            if self.payload['kind']=='video' and len(self.files)!=1:raise PreflightError('invalid_input','仅接受单视频')
             if not self.credential.get('instance_account'):raise PreflightError('auth_expired','需绑定独立 xhs-mcp 实例的账号标识')
             if self.credential.get('instance_account')!=self.cfg.get('instance_account'):raise PreflightError('auth_expired','xhs-mcp 实例账号不匹配')
-            if len(self.payload['title'])>20:raise PreflightError('invalid_input','小红书标题超过 20 字')
+            try:
+                status=httpx.get(self.cfg['endpoint'].rstrip('/')+'/api/v1/login/status',timeout=30,trust_env=False)
+                identity=status.json().get('data',{})
+                if status.status_code!=200 or not identity.get('is_logged_in') or not self.credential.get('platform_user_id') or str(identity.get('user_id'))!=str(self.credential['platform_user_id']):raise PreflightError('auth_expired','小红书实际账号身份与绑定身份不符，请重新授权')
+            except httpx.HTTPError:raise PreflightError('engine_missing','账号专属小红书服务不可达')
+            if action!='publish':
+                from .platform_specs import allowed_url
+                target=self.payload.get('target_url','');parsed=urlsplit(target)
+                match=re.search(r'/(?:explore|discovery/item)/(\w+)',parsed.path)
+                if not allowed_url('xiaohongshu',target) or not match:raise PreflightError('invalid_input','需提供小红书笔记完整链接')
+                token=opts.get('xsec_token') or parse_qs(parsed.query).get('xsec_token',[''])[0]
+                if not token:raise PreflightError('invalid_input','原帖链接须包含有效 xsec_token')
+                self.comment_body={'feed_id':match.group(1),'xsec_token':token,'content':self.payload['description']}
+                if action=='reply':
+                    if not self.payload.get('target_comment_id') or not opts.get('target_user_id'):raise PreflightError('invalid_input','回复须指定评论 ID 和 target_user_id')
+                    self.comment_body.update(comment_id=self.payload['target_comment_id'],user_id=opts['target_user_id'])
+            if action=='publish' and len(self.payload['title'])>20:raise PreflightError('invalid_input','小红书标题超过 20 字')
         elif adapter in {'sau','spreado','biliup','ytuploader','matrixmedia'}:
             executable(self.cfg)
-            if self.payload['kind']!='video' or len(self.files)!=1:raise PreflightError('invalid_input','此 CLI 适配器只接受单视频')
+            if adapter!='sau' and (self.payload['kind']!='video' or len(self.files)!=1):raise PreflightError('invalid_input','此 CLI 适配器只接受单视频')
             if adapter=='sau':
-                if self.job['platform']=='bilibili':raise PreflightError('engine_incompatible','sau 的 biliup 隐式自动更新尚未隔离；暂不启用此通道')
-                root=Path(self.cfg.get('cwd','')).resolve();cookie=root/'cookies'/f"{self.job['platform']}_{self.job['account_id']}.json"
-                if not cookie.is_file():raise PreflightError('auth_expired','先用专用账号别名完成 sau 登录；不猜测 Cookie 格式')
-                if self.credential.get('account_alias')!=self.job['account_id']:raise PreflightError('auth_expired','sau 授权别名与账号不符')
+                from .sau_adapter import validate
+                validate(self)
             elif adapter=='spreado' and not self.credential.get('cookies'):raise PreflightError('auth_expired','缺少独立 Cookie 状态')
             elif adapter=='biliup':
                 if not self.cfg.get('usage_acknowledged'):raise PreflightError('engine_incompatible','需先确认上游用途限制')
@@ -87,15 +120,26 @@ class Adapter:
             except Exception:raise PreflightError('invalid_input','视频无法解析或无有效时长')
     def publish(self):
         adapter=self.cfg['adapter'];opts=self.payload.get('options',{})
+        if adapter=='sau':
+            from .sau_adapter import publish
+            return publish(self)
         if adapter=='xapi':
-            text=self.payload['title']+ ('\n'+self.payload['description'] if self.payload.get('description') else '')
+            replying=self.payload.get('action','publish')!='publish'
+            text=self.payload['description'] if replying else self.payload['title']+ ('\n'+self.payload['description'] if self.payload.get('description') else '')
+            body={'text':text}
+            if replying:body['reply']={'in_reply_to_tweet_id':str(self.reply_to)}
             proxy=self.job['egress'].get('proxy')
             with httpx.Client(timeout=60,proxy=proxy,trust_env=not bool(proxy)) as client:
-                r=client.post('https://api.x.com/2/tweets',headers={'Authorization':'Bearer '+self.credential['access_token']},json={'text':text})
+                r=client.post('https://api.x.com/2/tweets',headers={'Authorization':'Bearer '+self.credential['access_token']},json=body)
             if r.status_code in {401,403,429,400}:return {'ok':False,'error_class':{401:'auth_expired',403:'risk_control',429:'rate_limited',400:'invalid_input'}[r.status_code],'definitely_not_submitted':True}
             r.raise_for_status();remote=r.json().get('data',{}).get('id');return {'ok':bool(remote),'remote_id':remote}
+        if adapter=='xhsmcp' and self.payload.get('action','publish')!='publish':
+            path='/api/v1/feeds/comment/reply' if self.payload['action']=='reply' else '/api/v1/feeds/comment'
+            with httpx.Client(timeout=180,trust_env=False) as client:response=client.post(self.cfg['endpoint'].rstrip('/')+path,json=self.comment_body)
+            response.raise_for_status();data=response.json().get('data',{});identifier=data.get('comment_id')
+            return {'ok':bool(identifier),'remote_id':identifier,'error_class':'unknown'}
         if adapter=='xhsmcp':
-            body={'title':self.payload['title'],'content':self.payload.get('description',''),'topics':opts.get('topics',[])}
+            body={'title':self.payload['title'],'content':self.payload.get('description',''),'tags':opts.get('topics',opts.get('tags',[]))}
             if self.payload['kind']=='images':body['images']=[str(f) for f in self.files];path='/api/v1/publish'
             else:body['video']=str(self.files[0]);path='/api/v1/publish_video'
             # Shared local filesystem is required; endpoint must point to this Agent's dedicated process.
@@ -135,7 +179,13 @@ class Adapter:
             try:process.wait(timeout=1200)
             except BaseException:
                 process.kill();process.wait();raise
-        if adapter=='ytuploader' and out.exists():
+        if adapter=='biliup' and process.returncode==0:
+            with output.open('rb') as stream:
+                stream.seek(max(0,output.stat().st_size-1024*1024))
+                text=stream.read().decode('utf-8','replace')
+            matches=re.findall(r'''["']?bvid["']?\s*[:=]\s*["']?(BV[0-9A-Za-z]{10})''',text)
+            if matches:remote=matches[-1]
+        if adapter=='ytuploader' and process.returncode==0 and out.exists():
             data=json.loads(out.read_text());remote=data.get('id')
         # Human-readable CLI "success" is not sufficient evidence of remote publication.
         return {'ok':bool(remote),'remote_id':remote,'error_class':'unknown'}

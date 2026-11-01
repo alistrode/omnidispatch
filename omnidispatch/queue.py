@@ -30,14 +30,16 @@ class Queue:
                 s.execute(delete(AccountLock).where(AccountLock.job_id==job.id))
             if attempt:attempt.state=job.state;attempt.finished=t
             job.lease_until=0;audit(s,'lease.expired',job.id,state=job.state)
-    def claim(self,agent_id):
+    def claim(self,agent_id,job_id=None,desktop=False):
         with self.db.tx() as s:
             self.expire(s)
             agent=s.get(Agent,agent_id)
             if not agent or not agent.enabled:raise Conflict('节点已撤销')
             agent.last_seen=self.clock()
             caps=agent.capabilities.get('channels',{})
-            jobs=s.scalars(select(Job).where(Job.state.in_(['queued','retry_wait']),Job.due<=self.clock()).order_by(Job.due).with_for_update(skip_locked=True).limit(100)).all()
+            query=select(Job).where(Job.state.in_(['queued','retry_wait','needs_action','drafted'] if desktop else ['queued','retry_wait']),Job.due<=self.clock())
+            if job_id:query=query.where(Job.id==job_id)
+            jobs=s.scalars(query.order_by(Job.due).with_for_update(skip_locked=True).limit(100)).all()
             for job in jobs:
                 if s.get(AccountLock,job.account_id):continue
                 account=s.scalar(select(Account).where(Account.id==job.account_id).with_for_update(skip_locked=True))
@@ -45,10 +47,17 @@ class Queue:
                 if account.last_publish+account.min_interval>self.clock():continue
                 if s.get(AccountLock,job.account_id):continue
                 candidates=[]
-                for channel in s.scalars(select(Channel).where(Channel.platform==job.platform,Channel.enabled==True)):
+                trial=job.payload.get('verification_channel')
+                channel_query=select(Channel).where(Channel.platform==job.platform)
+                channel_query=channel_query.where(Channel.id==trial) if trial else channel_query.where(Channel.enabled==True)
+                for channel in s.scalars(channel_query):
                     installed=caps.get(channel.id,{})
+                    action=job.payload.get('action','publish')
+                    if action not in channel.capabilities.get('actions',['publish']):continue
+                    if not trial and action not in channel.evidence.get('actions',['publish']):continue
+                    if job.payload.get('delivery','published')=='draft' and channel.engine!='desktopweb':continue
                     credential=s.scalar(select(Credential).where(Credential.account_id==account.id,Credential.channel_id==channel.id,Credential.state=='active'))
-                    if not credential or channel.id in job.tried or channel.health=='unverified' or channel.open_until>self.clock():continue
+                    if not credential or channel.id in job.tried or (channel.health=='unverified' and not trial) or channel.open_until>self.clock():continue
                     if installed.get('version')!=channel.version or not installed.get('ready'):continue
                     if job.payload['kind'] not in channel.capabilities.get('media',[]):continue
                     if account.egress.get('mode','direct') not in installed.get('egress_modes',['direct']):continue
@@ -94,9 +103,12 @@ class Queue:
             account=s.get(Account,job.account_id);channel=s.get(Channel,job.channel_id)
             attempt=s.scalar(select(Attempt).where(Attempt.job_id==job.id,Attempt.generation==generation))
             kind=result.get('error_class','unknown');remote_id=result.get('remote_id')
-            if result.get('ok') and remote_id and job.state=='submitting':
+            if result.get('draft') and remote_id and job.state=='submitting':
+                job.state='drafted';job.remote_id=str(remote_id)[:300];job.reason='已保存草稿，尚未发布'
+            elif result.get('ok') and remote_id and job.state=='submitting':
                 job.state='succeeded';job.remote_id=str(remote_id)[:300];job.reason='平台接受提交；后续审核与可见性以平台为准'
                 account.last_publish=self.clock();channel.failures=0;channel.health='healthy';channel.open_until=0
+                channel.evidence={'actions':list(dict.fromkeys(channel.evidence.get('actions',(['publish'] if channel.evidence else []))+[job.payload.get('action','publish')])),'method':'engine_result','remote_id':str(remote_id)[:300],'at':self.clock(),'version':job.engine_version,'account_id':account.id}
             elif job.state=='submitting':
                 # Even explicit-looking client errors can arrive after platform side effects.
                 # Only adapter evidence of rejection is safe to retry; default is unknown.
@@ -104,9 +116,9 @@ class Queue:
                     job.state='needs_verify';job.reason='平台提交结果未知；已阻止跨通道重发'
                 else:self.failure(s,job,account,channel,kind)
             else:self.failure(s,job,account,channel,kind)
-            attempt.state=job.state;attempt.error_class='' if job.state=='succeeded' else kind;attempt.finished=self.clock()
+            attempt.state=job.state;attempt.error_class='' if job.state in {'succeeded','drafted'} else kind;attempt.finished=self.clock()
             job.lease_until=0
-            if job.payload.get('canary') and account.canary_allowed:
+            if job.payload.get('canary') and account.canary_allowed and job.state!='drafted':
                 update=s.scalar(select(Update).where(Update.engine==channel.engine,Update.version==job.engine_version,Update.state=='canary').with_for_update())
                 if update:
                     key='live_successes' if job.state=='succeeded' else 'live_failures'
@@ -133,6 +145,7 @@ class Queue:
         elif kind=='risk_control':
             account.state='cooling';account.cooldown_until=self.clock()+3600;job.state='needs_action';job.reason='平台要求人工处理；保留账号与出口'
         elif kind=='egress_unavailable':job.state='needs_action';job.reason='指定出口不可用；禁止直连回退'
+        elif kind=='desktop_required':job.state='needs_action';job.reason='此通道由本机桌面填写并确认，请点击「在桌面继续」'
         else:job.state='needs_action';job.reason='发布前检查未通过，请核对素材、参数或通道配置'
     def resolve(self,job_id,action,remote_id=None):
         with self.db.tx() as s:
@@ -141,6 +154,10 @@ class Queue:
             if action=='confirm_published':
                 if job.state!='needs_verify' or not remote_id:raise Conflict('需提供实际平台作品 ID')
                 job.state='succeeded';job.remote_id=remote_id;s.get(Account,job.account_id).last_publish=self.clock()
+                if job.payload.get('verification_channel'):
+                    channel=s.get(Channel,job.channel_id)
+                    if channel and channel.version==job.engine_version:
+                        channel.health='healthy';channel.evidence={'actions':list(dict.fromkeys(channel.evidence.get('actions',(['publish'] if channel.evidence else []))+[job.payload.get('action','publish')])),'method':'administrator_attestation','remote_id':remote_id,'at':self.clock(),'version':job.engine_version,'account_id':job.account_id}
             elif action=='confirm_not_published':
                 if job.state!='needs_verify':raise Conflict('任务未处于结果核验阶段')
                 job.state='queued';job.tried=[];job.due=self.clock();job.reason='人工确认平台未发布，恢复排队'

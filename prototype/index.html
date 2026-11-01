@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OmniDispatch · 来源可达性</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --rose:#E87C8D; --amber:#F9CB8E;
+  --ink:#2E1B19; --ink2:#7A625C; --ink3:#B9A6A0; --ink4:rgba(46,27,25,.28);
+  --hair:rgba(46,27,25,.12);
+  --paper:#FFF9F5;
+  --k:1;
+  --mono:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
+  --sans:"PingFang SC","HarmonyOS Sans SC","Source Han Sans SC","Noto Sans SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;letter-spacing:.008em;font-variant-numeric:tabular-nums}
+.wash{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(163deg,rgba(232,124,141,.36) 0%,rgba(238,158,138,.24) 20%,
+    rgba(249,203,142,.26) 44%,rgba(255,246,239,.58) 66%,rgba(255,250,246,0) 86%)}
+.sheet{position:relative;z-index:1;max-width:1360px;margin:0 auto;padding:0 44px;
+  min-height:100vh;display:flex;flex-direction:column}
+
+header{flex:0 0 auto;padding-top:calc(24px * var(--k));text-align:center}
+.wordmark{font-size:10px;letter-spacing:.40em;font-weight:700}
+h1{margin:calc(12px * var(--k)) 0 0;font-size:calc(29px * var(--k));line-height:1.15;
+  font-weight:600;letter-spacing:-.024em}
+h1 em{font-style:normal;color:var(--rose)}
+.scale{margin:calc(9px * var(--k)) 0 0;font-size:10.5px;letter-spacing:.06em;color:var(--ink3)}
+.scale span+span::before{content:"·";margin:0 10px;opacity:.55}
+.scale b{font-weight:600;color:var(--ink2);font-family:var(--mono);font-size:11px}
+
+main{flex:1 1 auto;position:relative;min-height:0;padding-top:calc(6px * var(--k))}
+#canvas{position:relative;width:100%}
+svg.wire{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+
+.node{position:absolute;transform:translateX(-50%);text-align:center;white-space:nowrap}
+.node .nm{display:block;font-weight:600;letter-spacing:-.014em;line-height:1.12;color:var(--ink)}
+.node .pc{display:block;font-family:var(--mono);color:var(--ink3);line-height:1.3}
+
+.leaf{position:absolute;transform:translateX(-50%);text-align:center;white-space:nowrap}
+.leaf .leaves{display:flex;justify-content:center;gap:5px;height:6px;align-items:center;margin-bottom:3px}
+.leaf .leaves i{width:4px;height:4px;border-radius:50%;flex:0 0 auto}
+.leaf .nm{display:block;font-weight:600;letter-spacing:-.014em;line-height:1.15;color:var(--ink)}
+.leaf .meta{display:block;font-family:var(--mono);color:var(--ink3);line-height:1.35}
+.leaf .bad{display:block;font-size:inherit;color:var(--rose);line-height:1.35}
+.leaf.cand .nm{color:var(--ink3);font-weight:500}
+
+.mark{position:absolute;border-radius:50%;transform:translate(-50%,-50%)}
+
+footer{flex:0 0 auto;display:flex;justify-content:space-between;align-items:baseline;
+  padding:calc(8px * var(--k)) 0 calc(12px * var(--k));border-top:1px solid var(--hair);
+  font-size:9.5px;color:var(--ink3);letter-spacing:.14em}
+</style>
+</head>
+<body>
+<div class="wash"></div>
+<div class="sheet">
+<header>
+  <div class="wordmark">OMNIDISPATCH</div>
+  <h1>上游一发版，你就<em>拿到</em>。</h1>
+  <div class="scale" id="scale"></div>
+</header>
+<main><div id="canvas"></div></main>
+<footer>
+  <span>OMNIDISPATCH</span>
+  <span style="letter-spacing:.04em;opacity:.8">区域占比独立口径：可用渠道×8 ＋ 在用来源×4 ＋ 近30天活跃×3 ＋ 待接入来源×2</span>
+  <span>原型 · 2026-11-01</span>
+</footer>
+</div>
+<script>
+const NOW = new Date('2026-11-01T13:52:00+08:00');
+const DAY = 864e5;
+const ago = d => {
+  if (!d) return '';
+  const n = Math.round((NOW - new Date(d)) / DAY);
+  if (n <= 0) return '今天';
+  if (n === 1) return '昨天';
+  if (n < 30) return n + ' 天前';
+  if (n < 365) return Math.round(n / 30) + ' 个月前';
+  return Math.round(n / 365) + ' 年前';
+};
+
+/* ── 来源 ─────────────────────────────────────────────────── */
+const SRC = {
+  sau:{ n:'social-auto-upload', w:34, rel:'v1.0.0-skills.2', d:'2026-10-22',
+        ch:[['GitHub API','ok'],['Git 标签','ok'],['镜像加速','warn','滞后 1 天'],['粘性代理','ok']] },
+  matrixmedia:{ n:'matrix-media', w:27, rel:'v0.13.2', d:'2026-10-24',
+        ch:[['GitHub API','ok'],['发布资产','ok'],['镜像加速','ok'],['粘性代理','ok'],['Git 标签','warn','滞后 2 天']] },
+  spreado:{ n:'spreado', w:14, rel:'v1.2.0', d:'2026-05-02',
+        ch:[['GitHub API','ok'],['发布资产','ok'],['镜像加速','ok']] },
+  postiz:{ n:'postiz', w:14, rel:'v2.25.3', d:'2026-10-24', cand:true,
+        ch:[['GitHub API','ok'],['包注册源','ok'],['镜像加速','warn','滞后 1 天']] },
+  xhsmcp:{ n:'xiaohongshu-mcp', w:13, rel:'v2.5.5', d:'2026-09-22',
+        ch:[['GitHub API','ok'],['发布资产','ok'],['镜像加速','ok'],['粘性代理','warn','滞后 1 天']] },
+  biliup:{ n:'biliup', w:13, rel:'v1.3.4', d:'2026-10-22',
+        ch:[['GitHub API','ok'],['发布资产','ok'],['镜像加速','ok'],['粘性代理','ok']] },
+  mixpost:{ n:'mixpost', w:8, rel:'2.6.0', d:'2026-03-16', cand:true,
+        ch:[['GitHub API','ok'],['包注册源','ok'],['镜像加速','warn','滞后 3 天']] },
+  ytuploader:{ n:'youtubeuploader', w:7, rel:'v1.25.5', d:'2025-08-14',
+        ch:[['GitHub API','warn','滞后 4 小时'],['发布资产','ok'],['粘性代理','ok'],['镜像加速','down']] },
+  postbot:{ n:'postbot', w:6, rel:'', d:'', cand:true,
+        ch:[['GitHub API','down'],['镜像加速','ok']] },
+  resin:{ n:'resin', w:6, rel:'v1.3.0', d:'2026-10-21',
+        ch:[['GitHub API','ok'],['发布资产','ok'],['镜像加速','ok']] },
+  tweepy:{ n:'tweepy', w:4, rel:'v4.17.0', d:'2026-07-02',
+        ch:[['GitHub API','ok'],['包注册源','ok'],['发布资产','ok'],['镜像加速','ok']] },
+  patchright:{ n:'patchright', w:3, rel:'v1.64.1', d:'2026-10-15',
+        ch:[['GitHub API','ok'],['包注册源','ok'],['镜像加速','warn','滞后 2 天']] }
+};
+
+/* ── 区域（独立口径） ─────────────────────────────────────── */
+const REGION = [
+  { n:'小红书',  w:56, s:['sau','xhsmcp','spreado','matrixmedia','postbot'] },
+  { n:'B 站',    w:47, s:['sau','biliup','matrixmedia','postbot'] },
+  { n:'视频号',  w:44, s:['sau','spreado','matrixmedia','postbot'] },
+  { n:'出口与支撑', w:36, s:['resin','tweepy','patchright'] },
+  { n:'YouTube', w:31, s:['sau','ytuploader','postiz','mixpost'] },
+  { n:'X',       w:4,  s:['postiz','mixpost'] }
+];
+
+function shares(ws){
+  const t = ws.reduce((a,b)=>a+b,0) || 1;
+  const raw = ws.map(w => w / t * 100);
+  const out = raw.map(x => Math.floor(x * 10) / 10);
+  let drift = Math.round((100 - out.reduce((a,b)=>a+b,0)) * 10);
+  const ord = raw.map((x,i)=>[x-out[i],i]).sort((a,b)=>b[0]-a[0]).map(x=>x[1]);
+  let k = 0;
+  while (drift > 0){ out[ord[k%ord.length]] = +(out[ord[k%ord.length]]+0.1).toFixed(1); drift--; k++; }
+  return out;
+}
+
+const ROSE=[232,124,141], AMBER=[249,203,142], INK=[46,27,25];
+const mix = (t, a=.14) => `rgb(${ROSE.map((v,i)=>
+  Math.round((v+(AMBER[i]-v)*t)*(1-a) + INK[i]*a)).join(',')})`;
+const DOT = { ok:'rgba(46,27,25,.40)', warn:'#E87C8D', down:'rgba(46,27,25,.15)', na:'rgba(46,27,25,.10)' };
+
+const ids = Object.keys(SRC);
+const sShare = shares(ids.map(id => SRC[id].w));
+const sMax = Math.max(...sShare);
+/* 区域占比：6 个区域 + 一个「界面」占位（极少但不为 0） */
+const rShareAll = shares([...REGION.map(r => r.w), 1]);
+const rShare = rShareAll.slice(0, REGION.length);
+const uiShare = rShareAll[REGION.length];
+const rMax = Math.max(...rShare);
+
+const allCh = ids.flatMap(id => SRC[id].ch);
+const okN = allCh.filter(c=>c[1]==='ok').length;
+const wnN = allCh.filter(c=>c[1]==='warn').length;
+const dnN = allCh.filter(c=>c[1]==='down').length;
+document.getElementById('scale').innerHTML = [
+  ['来源', ids.length], ['区域', REGION.length], ['渠道', allCh.length],
+  ['可达', okN], ['降级', wnN], ['不可达', dnN]
+].map(([k,v]) => `<span>${k} <b>${v}</b></span>`).join('');
+
+/* ── 绘制 ─────────────────────────────────────────────────── */
+const SVGNS='http://www.w3.org/2000/svg';
+const canvas = document.getElementById('canvas');
+const root = document.documentElement;
+const K = () => parseFloat(getComputedStyle(root).getPropertyValue('--k')) || 1;
+
+function layout(k){
+  const W = canvas.clientWidth;
+  const N = REGION.length, colW = W / N, cx = W / 2;
+  const yFork = 22 * k, yRegA = 112 * k, droop = 34 * k;
+  const ySrc0 = 66 * k, gap = 60 * k;
+
+  const regs = REGION.map((r,i) => {
+    const t = (i - (N-1)/2) / ((N-1)/2);
+    return { ...r, i, x: colW*(i+.5), y: yRegA + droop*t*t, share: rShare[i] };
+  });
+
+  const srcNodes = [];
+  const seen = new Set();          // 全局：同一来源只在首次出现时带数字
+  regs.forEach(rg => {
+    let yy = rg.y + ySrc0;
+    rg.s.forEach(id => {
+      const s = SRC[id];
+      const idx = ids.indexOf(id);
+      const first = !seen.has(id); seen.add(id);
+      srcNodes.push({ rg, id, s, yy, first, w: sShare[idx] });
+      yy += gap;
+    });
+  });
+
+  const H = Math.max(...srcNodes.map(n => n.yy)) + 64 * k;
+  return { W, H, N, colW, cx, yFork, regs, srcNodes, k };
+}
+
+function paint(){
+  const k = K();
+  const L = layout(k);
+  canvas.style.height = L.H + 'px';
+  canvas.innerHTML = '';
+
+  const svg = document.createElementNS(SVGNS,'svg');
+  svg.setAttribute('class','wire');
+  svg.setAttribute('viewBox', `0 0 ${L.W} ${L.H}`);
+  canvas.appendChild(svg);
+  const path = (d, stroke, w, op, dash) => {
+    const p = document.createElementNS(SVGNS,'path');
+    p.setAttribute('d', d); p.setAttribute('fill','none');
+    p.setAttribute('stroke', stroke); p.setAttribute('stroke-width', w);
+    p.setAttribute('stroke-opacity', op); p.setAttribute('stroke-linecap','round');
+    if (dash) p.setAttribute('stroke-dasharray', dash);
+    svg.appendChild(p);
+    return p;
+  };
+
+  /* ── 1. 文字与叶标记（先落 DOM，后量尺寸画线） ── */
+  const marksAt = [];   // {x,y,color,size}
+  const anchors = [];   // 每个来源块的枝头锚点
+
+  L.regs.forEach(rg => {
+    const el = document.createElement('div');
+    el.className = 'node';
+    el.style.cssText = `left:${rg.x}px;top:${rg.y + 5*k}px`;
+    el.innerHTML = `<span class="nm" style="font-size:${((14 + 8*Math.pow(rg.share/rMax,.8))*k).toFixed(2)}px">${rg.n}</span>`
+      + `<span class="pc" style="font-size:${(9.5*k).toFixed(2)}px;margin-top:${(1*k).toFixed(1)}px">${rg.share.toFixed(1)}%</span>`;
+    canvas.appendChild(el);
+
+    const m = document.createElement('i');
+    m.className = 'mark';
+    const r = (3.2 + 5.4*Math.sqrt(rg.share/rMax)) * k;
+    m.style.cssText = `left:${rg.x}px;top:${(rg.y - 5*k)}px;width:${r*2}px;height:${r*2}px;`
+      + `background:${mix(rg.i/(L.N-1), .1)};box-shadow:0 0 0 ${3*k}px rgba(255,249,245,.95)`;
+    canvas.appendChild(m);
+  });
+
+  L.srcNodes.forEach(nd => {
+    const broken = nd.s.ch.filter(c => c[1] !== 'ok');
+    const okc = nd.s.ch.filter(c => c[1] === 'ok').length;
+    const fs = (9.5 + 4.2*Math.pow(nd.w/sMax,.8)) * k;
+
+    const el = document.createElement('div');
+    el.className = 'leaf' + (nd.s.cand ? ' cand' : '');
+    el.style.cssText = `left:${nd.rg.x}px;top:${nd.yy}px;font-size:${(8.5*k).toFixed(2)}px`;
+    el.innerHTML =
+      `<span class="leaves">${nd.s.ch.map(c =>
+        `<i data-st="${c[1]}" style="background:${DOT[c[1]]};width:${(c[1]==='ok'?3.6:4.4)*k}px;height:${(c[1]==='ok'?3.6:4.4)*k}px"></i>`).join('')}</span>`
+      + `<span class="nm" style="font-size:${fs.toFixed(2)}px">${nd.s.n}</span>`
+      + (nd.first
+          ? `<span class="meta">${nd.w.toFixed(1)}% · ${okc}/${nd.s.ch.length}</span>`
+            + (nd.s.rel ? `<span class="meta">${nd.s.rel} · ${ago(nd.s.d)}</span>` : `<span class="meta">从未发版</span>`)
+          : '')
+      + (broken.length
+          ? `<span class="bad">${broken.map(c => c[0] + (c[2] ? ' ' + c[2] : '')).join(' · ')}</span>`
+          : '');
+    canvas.appendChild(el);
+    nd.el = el;
+  });
+
+  /* ── 2. 量出叶标记的实际坐标，画细枝 ── */
+  const box = canvas.getBoundingClientRect();
+  L.srcNodes.forEach(nd => {
+    const dots = [...nd.el.querySelectorAll('.leaves i')];
+    const top = nd.el.getBoundingClientRect();
+    const ay = nd.yy - 7*k;
+    nd.dots = dots.map(d => {
+      const r = d.getBoundingClientRect();
+      return { x: r.left - box.left + r.width/2, y: r.top - box.top + r.height/2 };
+    });
+    nd.anchorY = ay;
+    nd.top = top.top - box.top;
+    nd.bottom = top.bottom - box.top;
+    /* 小枝：来源节点 → 每片叶 */
+    nd.dots.forEach(p => {
+      path(`M${nd.rg.x} ${ay} C${nd.rg.x} ${ay + 5*k}, ${p.x} ${p.y - 4*k}, ${p.x} ${p.y - 2*k}`,
+           nd.s.cand ? 'rgba(46,27,25,.10)' : 'rgba(46,27,25,.20)', .65*k, 1);
+    });
+  });
+
+  /* ── 3. 中枝：区域一条茎，来源节点排在茎上；茎只在标签之间的空隙里可见 ── */
+  L.regs.forEach(rg => {
+    const mine = L.srcNodes.filter(n => n.rg === rg);
+    if (!mine.length) return;
+    const dash = mine.every(n => n.s.cand) ? '2 3' : '';
+    const col = mine.every(n => n.s.cand) ? 'rgba(46,27,25,.12)' : 'rgba(46,27,25,.26)';
+    const y0 = rg.y + 26*k;
+
+    path(`M${rg.x} ${y0} L${rg.x} ${mine[0].anchorY}`, col, 1*k, 1, dash);
+    for (let i = 1; i < mine.length; i++){
+      const from = mine[i-1].bottom + 2*k;
+      const to   = mine[i].anchorY;
+      if (to > from) path(`M${rg.x} ${from} L${rg.x} ${to}`, col, 1*k, 1, dash);
+    }
+    mine.forEach(nd => {
+      const m = document.createElement('i');
+      m.className = 'mark';
+      m.style.cssText = `left:${rg.x}px;top:${nd.anchorY}px;width:${3.4*k}px;height:${3.4*k}px;`
+        + `background:${nd.s.cand ? 'rgba(46,27,25,.18)' : 'rgba(46,27,25,.42)'}`;
+      canvas.appendChild(m);
+    });
+  });
+
+  /* ── 3. 主干 ── */
+  const g = document.createElementNS(SVGNS,'defs');
+  g.innerHTML = `<linearGradient id="tg" x1="0" y1="0" x2="0" y2="${L.H}" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#E87C8D" stop-opacity=".85"/>
+    <stop offset=".5" stop-color="#EE9A87" stop-opacity=".5"/>
+    <stop offset="1" stop-color="#F9CB8E" stop-opacity=".16"/></linearGradient>`;
+  svg.appendChild(g);
+  path(`M${L.cx} 0 L${L.cx} ${L.yFork}`, 'url(#tg)', 3*k, 1);
+
+  /* 树干自带的「界面」占比：极少，但不为 0 */
+  {
+    const y = L.yFork + 26*k;
+    const m = document.createElement('i');
+    m.className = 'mark';
+    m.style.cssText = `left:${L.cx}px;top:${y}px;width:${3*k}px;height:${3*k}px;background:rgba(46,27,25,.16)`;
+    canvas.appendChild(m);
+    const t = document.createElement('div');
+    t.style.cssText = `position:absolute;left:${L.cx + 9*k}px;top:${y - 7*k}px;font-size:${8.5*k}px;`
+      + `font-family:var(--mono);color:rgba(46,27,25,.26);white-space:nowrap;letter-spacing:.02em`;
+    t.textContent = '界面 ' + uiShare.toFixed(1) + '%';
+    canvas.appendChild(t);
+  }
+
+  /* ── 4. 大枝：分叉点 → 各区域（下垂弧） ── */
+  L.regs.forEach(rg => {
+    const mx = (L.cx + rg.x)/2;
+    path(`M${L.cx} ${L.yFork} C${L.cx} ${rg.y*.5}, ${mx} ${rg.y*.8}, ${rg.x} ${rg.y - 14*k}`,
+         mix(rg.i/(L.N-1), .1), (1.1 + 1.1*Math.sqrt(rg.share/rMax))*k, .62);
+  });
+}
+
+/* ── 一屏适配：同时受高度与宽度约束 ───────────────────────── */
+const setK = k => { const c = Math.max(.5, Math.min(1.6, k)); root.style.setProperty('--k', c.toFixed(4)); return c; };
+
+function fit(){
+  setK(1); paint();
+
+  /* 宽度上限：最宽的一个来源块必须装进它的列 */
+  const colW = canvas.clientWidth / REGION.length;
+  const widest = Math.max(...[...canvas.querySelectorAll('.leaf')].map(e => e.getBoundingClientRect().width), 1);
+  const kWidth = (colW - 16) / widest;
+
+  const v = window.innerHeight;
+  let lo = .5, hi = Math.min(1.6, kWidth), best = .5;
+  for (let i = 0; i < 11; i++){
+    const mid = (lo + hi)/2;
+    setK(mid); paint();
+    if (root.scrollHeight <= v){ best = mid; lo = mid; } else hi = mid;
+  }
+  setK(best); paint();
+}
+fit();
+addEventListener('resize', () => { clearTimeout(fit._t); fit._t = setTimeout(fit, 150); });
+
+if (location.hash === '#dbg'){
+  const d = document.createElement('div');
+  d.style.cssText='position:fixed;left:8px;bottom:8px;z-index:9;font:11px monospace;padding:4px 7px;background:#000;color:#0f0';
+  const u = () => d.textContent = 'view='+window.innerHeight+' scroll='+root.scrollHeight
+    +' k='+getComputedStyle(root).getPropertyValue('--k').trim()
+    +' leaves='+document.querySelectorAll('.leaf').length;
+  u(); setTimeout(u, 500); document.body.appendChild(d);
+}
+</script>
+</body>
+</html>

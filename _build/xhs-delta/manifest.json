@@ -1,0 +1,17 @@
+{
+  "xiaohongshu-login.exe": {
+    "old": "bef4f2c69d9a1a3cfd7dd77535a0f27cfbb8bdc2e44a6868a3eeeb5574b42557",
+    "new": "e06e8a3f61ba18ae26a13b87c5d24afdf20936303ec80ae5bbbf1cd17cb6ef1a",
+    "patch": "43303cb76ea02d587e335b0ca344f6c052b44b3ddbdd092a631fe028fb746a8a"
+  },
+  "omni-browser-smoke.exe": {
+    "old": "15f145abc20f9466f71750733265ed95bc9f3132252f70c4639a27b2bdb95bf8",
+    "new": "3d7fb498abdfa879ee3e232be116cb530e16e90d4df362fb0811f15879b167cb",
+    "patch": "5bb11509e81b6083efe15c449fe113b51602184fc2349518076f5dc54b1a394f"
+  },
+  "xiaohongshu-mcp.exe": {
+    "old": "c1758673e2bb0c386d4dcc9769594e0f94f2b3975be9ce2c7770f70e69f2a0c3",
+    "new": "b5836d9639471e9c960c1589474a53a0eefcbdf2a01f028d51c22162338bc5ae",
+    "patch": "ef36f1b00dd5bb7f3ca85a129bb934657a49a165c111bc6336984c840b01a28c"
+  }
+}

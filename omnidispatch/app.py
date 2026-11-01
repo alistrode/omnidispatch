@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os,json,time,asyncio,secrets,contextlib
+import os,json,time,asyncio,secrets,contextlib,subprocess
 from pathlib import Path
 from collections import Counter
 import pyotp
@@ -21,9 +21,11 @@ class Login(Strict):username:str=Field(max_length=80);password:str=Field(max_len
 class AccountIn(Strict):label:str=Field(min_length=1,max_length=120);platform:str;min_interval:int=Field(default=60,ge=30,le=86400);egress:dict=Field(default_factory=lambda:{'mode':'direct'});canary_allowed:bool=False
 class CredIn(Strict):channel_id:str;value:dict
 class ChannelIn(Strict):version:str=Field(min_length=1,max_length=100);priority:int=Field(default=50,ge=0,le=100);enabled:bool=False
-class JobIn(Strict):idempotency_key:str=Field(min_length=8,max_length=120);account_id:str;title:str=Field(min_length=1,max_length=300);description:str=Field(default='',max_length=10000);kind:str='video';assets:list[str]=Field(default_factory=list,max_length=20);due:float|None=None;options:dict=Field(default_factory=dict);canary:bool=False
+class JobIn(Strict):idempotency_key:str=Field(min_length=8,max_length=120);account_id:str;title:str=Field(min_length=1,max_length=300);description:str=Field(default='',max_length=10000);kind:str='video';assets:list[str]=Field(default_factory=list,max_length=20);due:float|None=None;options:dict=Field(default_factory=dict);canary:bool=False;verification_channel:str|None=None;action:str='publish';target_url:str='';target_comment_id:str='';delivery:str='published'
 class UploadIn(Strict):name:str=Field(min_length=1,max_length=200);size:int=Field(gt=0,le=2*1024**3)
 class Action(Strict):action:str;remote_id:str|None=None
+class AccountSelection(Strict):account_id:str
+class LocalChannelIn(Strict):version:str;usage_acknowledged:bool=False
 class AgentIn(Strict):label:str=Field(min_length=1,max_length=120)
 class Beat(Strict):capabilities:dict
 class Generation(Strict):generation:int=Field(ge=1)
@@ -99,8 +101,12 @@ def create_app(state=None,database_url=None,*,background=True):
             agent=s.get(Agent,parts[0])
             if not agent or not agent.enabled or not verify(agent.token_hash,parts[1]):raise HTTPException(401,'节点已撤销或认证失败')
             return agent.id
+    @app.get('/api/platforms')
+    def platform_catalog(user=Depends(admin)):
+        from .platform_specs import PLATFORM_SPECS
+        return [{**value,'id':key} for key,value in PLATFORM_SPECS.items()]
     @app.get('/api/health')
-    def health():return {'ok':True,'version':'0.1.0','database':db.engine.dialect.name}
+    def health():return {'ok':True,'product':'omnidispatch','version':'1.1.0-desktop','platform_count':len(PLATFORMS),'database':db.engine.dialect.name}
     @app.post('/api/login')
     def login(data:Login,request:Request):
         ip=request.client.host if request.client else 'unknown';key=ip[:120]
@@ -127,6 +133,52 @@ def create_app(state=None,database_url=None,*,background=True):
                 s.add(session);s.flush();token=session.id+'.'+secret;audit(s,'auth.login',user.id)
         if denied:raise HTTPException(401,'用户名、密码或验证码错误')
         response=JSONResponse({'csrf':csrf});response.set_cookie('omni_session',token,httponly=True,secure=secure,samesite='strict',max_age=43200);return response
+    @app.post('/api/bootstrap')
+    def bootstrap(request:Request):
+        """本机直连自动发放会话；经隧道或带转发头的请求一律仍需口令。"""
+        host=request.url.hostname or ''
+        proxied=any(k.lower().startswith('cf-') for k in request.headers.keys()) or bool(request.headers.get('x-forwarded-for'))
+        peer=request.client.host if request.client else ''
+        if proxied or host not in {'127.0.0.1','localhost','::1'} or peer not in {'127.0.0.1','::1'}:
+            raise HTTPException(401,'远程访问需要口令')
+        with db.tx() as s:
+            raw=request.cookies.get('omni_session','').split('.',1)
+            previous=s.get(Session,raw[0]) if len(raw)==2 else None
+            if previous and previous.expires>time.time() and verify(previous.token_hash,raw[1]):
+                owner=s.get(Admin,previous.admin_id)
+                if owner:return JSONResponse({'csrf':previous.csrf,'username':owner.username})
+            account=s.scalar(select(Admin).limit(1))
+            if not account:raise HTTPException(401,'尚未初始化管理员')
+            secret=new_token();csrf=new_token()
+            session=Session(admin_id=account.id,token_hash=ph.hash(secret),csrf=csrf,expires=time.time()+43200)
+            s.add(session);s.flush()
+            token=session.id+'.'+secret;name=account.username
+            audit(s,'auth.bootstrap_local',account.id)
+        response=JSONResponse({'csrf':csrf,'username':name})
+        response.set_cookie('omni_session',token,httponly=True,secure=secure,samesite='strict',max_age=43200)
+        return response
+    from .local_engines import available_engines,configure_channel,account_config,import_credential
+    def local_request(request):
+        if not request.client or request.client.host not in {'127.0.0.1','::1'}:
+            raise HTTPException(403,'此操作仅限本机桌面')
+    @app.get('/api/local/channels')
+    def local_channels(request:Request,user=Depends(admin)):
+        local_request(request)
+        return available_engines(state)
+    @app.post('/api/local/channels/{channel_id}')
+    def local_configure(channel_id:str,data:LocalChannelIn,request:Request,user=Depends(admin)):
+        local_request(request)
+        return configure_channel(state,db,channel_id,data.version,data.usage_acknowledged)
+    @app.post('/api/channels/{channel_id}/login')
+    def channel_login(channel_id:str,data:AccountSelection,request:Request,user=Depends(admin)):
+        local_request(request)
+        cfg,_=account_config(state,db,channel_id,data.account_id)
+        return {'desktop_required':True,'engine':cfg['adapter'],'channel':channel_id,'account':data.account_id,
+                'output':'在桌面窗口完成扫码，完成后导入该账号的登录态。'}
+    @app.post('/api/channels/{channel_id}/import-login')
+    def channel_import(channel_id:str,data:AccountSelection,request:Request,user=Depends(admin)):
+        local_request(request)
+        return import_credential(state,db,vault,channel_id,data.account_id)
     @app.get('/api/me')
     def me(request:Request,user=Depends(admin)):
         with db.tx() as s:
@@ -218,6 +270,12 @@ def create_app(state=None,database_url=None,*,background=True):
             channel=s.get(Channel,channel_id)
             if not channel:raise ValueError('通道不存在')
             if data.enabled and (channel.health=='unverified' or channel.version!=data.version):raise ValueError('须先由节点完成只读检查，再核验真实发布')
+            if channel.version!=data.version:
+                channel.health='unverified';channel.evidence={}
+            if data.enabled:
+                ready=any(a.enabled and a.last_seen>time.time()-90 and a.capabilities.get('channels',{}).get(channel_id,{}).get('ready') and a.capabilities.get('channels',{}).get(channel_id,{}).get('version')==data.version for a in s.scalars(select(Agent)))
+                authorized=any(s.get(Account,c.account_id) and s.get(Account,c.account_id).state=='active' for c in s.scalars(select(Credential).where(Credential.channel_id==channel_id,Credential.state=='active')))
+                if not ready or not authorized:raise ValueError('启用需要版本匹配的在线节点与有效账号授权')
             channel.version=data.version;channel.priority=data.priority;channel.enabled=data.enabled;audit(s,'channel.configured',channel.id,version=data.version,enabled=data.enabled)
         return {'ok':True}
     @app.post('/api/channels/{channel_id}/verify')
@@ -229,7 +287,7 @@ def create_app(state=None,database_url=None,*,background=True):
             if not channel or channel.version=='unconfigured':raise ValueError('先配置版本')
             ready=any(a.enabled and a.last_seen>time.time()-90 and a.capabilities.get('channels',{}).get(channel_id,{}).get('version')==channel.version and a.capabilities.get('channels',{}).get(channel_id,{}).get('ready') for a in s.scalars(select(Agent)))
             if not ready:raise ValueError('没有版本匹配且检查通过的在线节点')
-            channel.health='healthy';channel.failures=0;channel.open_until=0;channel.evidence={'method':'administrator_attestation','remote_id':data.remote_id,'at':time.time(),'version':channel.version}
+            channel.health='healthy';channel.failures=0;channel.open_until=0;channel.evidence={'actions':['publish'],'method':'administrator_attestation','remote_id':data.remote_id,'at':time.time(),'version':channel.version}
             audit(s,'channel.live_attested',channel_id,remote_id=data.remote_id)
         return {'ok':True}
     chunk_size=8*1024*1024
@@ -342,8 +400,17 @@ def create_app(state=None,database_url=None,*,background=True):
         with db.tx() as s:return [public(j) for j in s.scalars(select(Job).order_by(Job.created.desc()).limit(500))]
     @app.post('/api/jobs')
     def job_add(data:JobIn,user=Depends(admin)):
-        payload={'title':data.title,'description':data.description,'kind':data.kind,'assets':data.assets,'options':data.options,'canary':data.canary}
+        payload={'title':data.title,'description':data.description,'kind':data.kind,'assets':data.assets,'options':data.options,'canary':data.canary,'verification_channel':data.verification_channel,'action':data.action,'target_url':data.target_url,'target_comment_id':data.target_comment_id,'delivery':data.delivery}
+        from .platform_specs import validate_intent
         with db.tx() as s:
+            account=s.get(Account,data.account_id)
+            if not account:raise ValueError('账号不存在')
+            validate_intent(account.platform,payload)
+            if data.verification_channel:
+                channel=s.get(Channel,data.verification_channel);account=s.get(Account,data.account_id)
+                if data.delivery=='draft' and channel and channel.engine!='desktopweb':raise ValueError('保存草稿请选择本机桌面通道')
+                if not channel or not account or channel.platform!=account.platform or not channel.capabilities.get('implemented'):
+                    raise ValueError('首次核验必须选择本账号平台的已实现通道')
             for asset_id in data.assets:
                 asset=s.get(Asset,asset_id)
                 if not asset or asset.kind!=data.kind:raise ValueError('素材不存在或类型不匹配')
@@ -439,6 +506,8 @@ def create_app(state=None,database_url=None,*,background=True):
             updates.stage(update_id,temp,request.headers.get('x-update-signature',''),os.getenv('OMNI_UPDATE_PUBLIC_KEY',''))
         finally:temp.unlink(missing_ok=True)
         return {'ok':True}
+    from .desktop_api import mount_desktop_routes
+    mount_desktop_routes(app,db,vault,queue,state,admin)
     static=Path(__file__).parent/'static'
     if static.exists():app.mount('/',StaticFiles(directory=static,html=True),name='web')
     return app

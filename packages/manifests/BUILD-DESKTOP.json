@@ -1,0 +1,62 @@
+{
+  "version": "1.1.0-desktop",
+  "local_installation": true,
+  "platforms_registered": 23,
+  "tests": 56,
+  "test_failures": 0,
+  "native_routes": 13,
+  "native_page_errors": [],
+  "one_screen": true,
+  "real_platform_publications": 0,
+  "runtime": "Python 3.14.10 + isolated community Python 3.12.10",
+  "community_source": "dreammis/social-auto-upload@3847fff01f5434a8a32829833163cd6723cabc59",
+  "xhs_source_build": "v2.5.5-omni standard Chromium, no runtime downloads",
+  "sharing": "local desktop; no public tunnel",
+  "source_sha256": {
+    "omnidispatch/adapters.py": "0332759bf53e80d88c4d37c6b81680f8e653af35b30a851e0704a49021434364",
+    "omnidispatch/agent.py": "137c3bac9181d92b0aad0f68673923ba91d7985f9a02317762869706fc74b930",
+    "omnidispatch/app.py": "4ad886ab0be00f10b2bd92c539ca64c7b82f7043f93012b832c2f319a18dec2d",
+    "omnidispatch/browser_desktop.py": "355c9063547a577251e6d8b912d8c5ee15d0af09af82dc41be983d1b12eeb50d",
+    "omnidispatch/browser_provision.py": "06661bfd40a502ae72c17da343a20811530aaab8c24aed68d6f5208430ade76d",
+    "omnidispatch/catalog.py": "57d2b80e398d9515839d91363625e6558a015f104414bdd26ed0f01353d9d8d4",
+    "omnidispatch/cli.py": "544a755b3d011abb80e60fefec1b36ae05a42e54501fa28ffcc53dcfe317448c",
+    "omnidispatch/db.py": "7eaa0dc762847f8c3039b9ab6894993e2f6a1f91b3d0369b7f059b89de6798de",
+    "omnidispatch/desktop_api.py": "ea6f62db3e943840d05d826c3b36aa99f06fbf9428651b55b0ea505c31a5cff5",
+    "omnidispatch/desktop_login.py": "3c8cc3bc3fc11cd239b79476fd63104ffbc762c123e6bb1b59075e0379d5d792",
+    "omnidispatch/desktop_runtime.py": "a88c677d9a7bcfeb1c35eba69efd4598a8efd233fba2a21dbb4f0460a131cfa3",
+    "omnidispatch/local_engines.py": "d4637f345b6790653a5d021dc2691f4826f35cc9714794e06215dfad6f2468b5",
+    "omnidispatch/managed.py": "676746eb3fd84be488d0adbd03184fd255402b28fed1d1530fd704bd1d5ab9f9",
+    "omnidispatch/platform_specs.py": "124cc644a80b6d07185c386322d263c352fb6e8bdf1f5ad7c2ad1379232290d7",
+    "omnidispatch/queue.py": "a0556a879581ddaeec99efdc5245130af03da9fa77cafc8d64eca01124d58513",
+    "omnidispatch/sau_adapter.py": "2b2ac84a32009222a69a67bf01525bafa9cbb9ff280c590e31e3b9de01ef86bf",
+    "omnidispatch/security.py": "1faa3a98b0cf684c3ba6978faaf4519aebe028aeb22dc111dc311f97f90b1a9f",
+    "omnidispatch/spreado_bridge.py": "2147f1ea03342ce9e490bd1159b43d249147e61c303fb301a95bd5dd47051922",
+    "omnidispatch/supervisor.py": "4e3e39886c28f347b99a31807f431316c301baa2b1ac014e7c88227eab00eb54",
+    "omnidispatch/updates.py": "6c86f85b4d40bc723e51ef8848ceeae472ff2274db9a9ac468656b92b550016c",
+    "omnidispatch/windows_job.py": "253e86f41a20aa3524d43e8eca0cb3ccbee5363466cdeced2556956ad9fb5ea8",
+    "omnidispatch/__init__.py": "91447944015cec709e8aa7655f7e9d64e1e4508e7023a57fe3746911c0fc6fed",
+    "omnidispatch/static/app.css": "70a92837574098721b8afe562c5b793d237a76961a168b0c4e8a2a54d900f9d5",
+    "omnidispatch/static/app.js": "6e66f77ac909b75c14f8cc5ac109281134a4e2bceb57673920b14cbc12306bfd",
+    "omnidispatch/static/index.html": "6398cc30d3c5e8d9660c19f9759650f5ddebe0fb0b1b3df8d2171fcbbc435d32"
+  },
+  "design_system": "quiet local workspace",
+  "design_viewports": [
+    [
+      1404,
+      845
+    ],
+    [
+      900,
+      640
+    ],
+    [
+      1920,
+      1080
+    ]
+  ],
+  "design_interactions": {
+    "draft_preserved": true,
+    "comment_and_reply_forms": true,
+    "channel_drilldown": true
+  }
+}

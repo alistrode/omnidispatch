@@ -1,82 +1,23 @@
-# 依赖清单
+# 运行与开发依赖
 
-## 运行分发包 `omnidispatch-v0.1.0-win-x64.zip`
+## 免安装运行包
 
-包内已含官方 Python 运行时与全部生产依赖，不需要系统 Python、不需要 pip 联网安装。
+`OmniDispatch-Desktop-Windows-x64.zip`（约 1.0 GB）作为 GitHub Release 附件发布，不进 Git 对象；直链与摘要见 `packages/DOWNLOAD.md`、`packages/OmniDispatch-Desktop-Windows-x64.sha256`。下载后解压出整个 OmniDispatch 文件夹，再运行其中的 OmniDispatch.exe 或 Start.cmd；`Start-Packaged.cmd` 会自动下载、校验、解压并启动。原生 Windows x64，当前实机记录为 Windows 11；不冒充 Windows 10 或 Linux 验收。
 
-| 依赖 | 是否必须 | 说明 |
-|---|---|---|
-| Windows x64 | 必须 | 运行时为官方 CPython 3.14.10 embeddable x64 |
-| 系统 Python | 不需要 | 包内 `runtime\python.exe`，`Start.cmd` 固定使用它 |
-| .NET / Node | 不需要（运行期） | 前端已构建为静态产物 `omnidispatch\static\assets\` |
-| 浏览器 | 必须 | 访问 `http://127.0.0.1:8791` |
-| 外部发布引擎 | **按通道需要** | 见下节，不随包分发，需用 `scripts\engine-install.py` 安装 |
-| 互联网 | 按功能需要 | 引擎安装、平台发布、更新源 |
+包内包含 CPython 3.14.10、生产 Python 依赖、独立 CPython 3.12.10 社区环境、Microsoft WebView2 Fixed Runtime 156.0.4314.58、Chrome for Testing 156.0.8078.4 与当前实际接入的引擎。正常运行不要求系统另外安装 Python、浏览器、Go 或 Node。
 
-## 一、内置 Python 运行时
+Windows 自带的 .NET Framework 4.x / WinForms 和系统 DLL 属于操作系统基线。程序首次运行创建本机状态；已有账号凭证、数据库和私钥不分发。
 
-| 项 | 值 |
-|---|---|
-| 版本 | CPython **3.14.10** embeddable amd64 |
-| 来源 | `https://www.python.org/ftp/python/3.14.10/python-3.14.10-embed-amd64.zip` |
-| 落位 | `runtime\`（1745 个文件，约 84.1 MB） |
-| 许可证 | 保留官方 `runtime\LICENSE.txt` |
-| 生产依赖 | 33 个 wheel，逐个列在 `BUILD.json` 的 `wheel_files` 字段 |
+版本、来源、摘要和许可：packages/manifests、desktop/*dependencies.json、engines.lock.json、vendor/*/BUILD.json、vendor/lucide/SOURCE.json、THIRD-PARTY.md。Spreado v1.2.0、SAU 3847fff 与小红书 v2.5.5-omni 的采用源码均保留。Lucide SVG 内嵌于前端，界面不依赖在线字体或图标 CDN。
 
-wheel 覆盖：FastAPI、Starlette、Uvicorn、Pydantic、SQLAlchemy、httpx、cryptography、argon2-cffi、pyotp、psycopg、python-multipart、pytest 等。
-各 wheel 保留自身 dist-info 许可证。版本另见 `requirements.lock.txt` 与 `requirements-runtime.lock.txt`。
+## 开发环境
 
-## 二、外部发布引擎（不随包分发，必须按清单安装）
+`scripts/delivery/start-packaged-app.ps1 -PrepareDevelopment` 从同一个完整运行包恢复 .runtime，并恢复 development/test-tools 中现有的原始测试依赖。它公开记录 python314._pth 所需的验证目录，不依赖未公开手工补丁；不会复制真实账号状态。
 
-这些是第三方可执行文件，**不放进本仓库与 Release**，因为上游许可各不相同（见 `THIRD-PARTY.md`）。
-用 `runtime\python.exe scripts\engine-install.py` 按 `engines.lock.json` 锁定的版本安装。
+`run-dev.cmd`：隔离开发状态、8793 端口。`run-tests.cmd`：现有 Windows 测试。前端只需 Node 执行 `node apps/web/build.mjs`，不需要 npm 下载 UI 框架。原生外壳编译需要 Windows .NET Framework csc 与 desktop/vendor 中固定 WebView2 SDK 1.0.3537.50 DLL。社区源码重建另需 Go 1.24.13；当前预构建二进制已在运行包内，正常使用不需 Go。
 
-| 引擎 | 锁定版本 | 包内相对路径（安装后） | 大小 | 上游 |
-|---|---|---|---|---|
-| ffprobe | 5.1.0 | `engines\ffprobe\5.1.0\ffprobe.exe` | 77.24 MB | FFmpeg |
-| resin | v1.3.0 | `engines\resin\v1.3.0\resin.exe` | 36.51 MB | Resin 网关 |
-| spreado | v1.2.0 | `engines\spreado\v1.2.0\spreado-windows-x64.exe` | 44.77 MB | dreammis/social-auto-upload |
-| xhsmcp | v2.5.5 | `engines\xhsmcp\v2.5.5\xiaohongshu-mcp-windows-amd64.exe` | 14.89 MB | xpzouying/xiaohongshu-mcp |
-| ytuploader | v1.25.5 | `engines\ytuploader\v1.25.5\youtubeuploader.exe` | 21.69 MB | youtubeuploader |
+历史 xhs-delta 补丁保留在 _build/xhs-delta，只用于对应旧摘要的回溯；当前运行包已包含修复，不要反复套用。当前引擎构建文件可从包内 engines/xhsmcp/v2.5.5-omni 恢复。
 
-合计约 195.1 MB。完整来源仓库、Release 标签、published_at、每个资产的官方 URL 与字节数，全部记录在
-仓库根的 `engines.lock.json`（`observed_date: 2026-10-27`）。
+## 验证边界
 
-**许可证提示（摘自 THIRD-PARTY.md）**：外部引擎不属于自有源码，许可核验未完成的项目不得作为商业可用承诺；
-biliup 上游 README 明确禁止商业用途，未确认前不启用；Spreado 实际许可证以其锁定发行版为准；
-Postiz（AGPL-3.0）、MatrixMedia（GPL）分别处理。
-
-## 三、构建期依赖（仅在从源码构建时需要）
-
-| 依赖 | 版本/要求 |
-|---|---|
-| Python | 3.11+（构建）；运行时锁定 3.14.10 |
-| Node.js + npm | 用于 `apps/web`（Vue 3 + Vite + Element Plus） |
-| 后端依赖 | `pip install -r requirements.lock.txt` |
-| 前端依赖 | `cd apps/web && npm ci` |
-
-## 四、端口
-
-| 端口 | 用途 |
-|---|---|
-| 8791 | Hub HTTP 服务（`Start.cmd` 打开 `http://127.0.0.1:8791`） |
-
-## 五、环境变量
-
-| 变量 | 用途 |
-|---|---|
-| `PYTHONUTF8` | `Start.cmd` 置 1，保证 UTF-8 |
-| `OMNI_UPDATE_PUBLIC_KEY` | 部署侧 Ed25519 公钥；缺失时禁止安装更新包 |
-| `OMNI_UPDATE_FEED_URL` | 同源 HTTPS 签名更新源 |
-| `OMNI_AUTO_PROMOTE` | 置 1 仅自动提升策略允许且观察通过的补丁 |
-| 数据库 URL | 默认 SQLite；正式并发节点可配 PostgreSQL |
-
-## 六、不随包分发的内容（明确排除）
-
-| 内容 | 原因 |
-|---|---|
-| `state\` | 含管理员凭证、resin 密钥、`vault.key`、`hub.db`，README 明确禁止打包 |
-| `logs\` | 运行日志，可能含敏感信息 |
-| `engines\` | 第三方二进制，许可各异，改由 `engines.lock.json` 清单按需安装 |
-| `validation-tools\`（源码内） | vendored pytest/colorama/pygments 等测试工具，属第三方可下载内容 |
-| `__pycache__` / `.pytest_cache` / `bin` / `obj` | 构建缓存 |
+当前包 SHA-256 见同目录 .sha256。Windows 现有 56 项后端测试、原生 13 路由、三种窗口的新界面检查通过；同一 ZIP 已从 GitHub 下载回验：单一解压文件夹内主 Python、首启数据库、本机 Hub、SAU 社区引擎、随包 Chromium 与原生窗口全部通过（记录见 VERIFICATION.md）。没有真实对外平台发帖；新通道仍需账号授权与真实核验。上传本身不重新赋予历史包验收结论。

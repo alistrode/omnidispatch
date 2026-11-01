@@ -1,3 +1,45 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#153a35"><title>OmniDispatch · 发布中枢</title>  <script type="module" crossorigin src="/assets/index-wgNqr13y.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-DBfdytBO.css">
-</head><body><div id="app"></div></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#FFF9F5"/>
+<title>OmniDispatch · 本机发布工作台</title>
+<link rel="stylesheet" href="/app.css?mvxvv8i2"/>
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到工作区</a>
+<div class="wash"></div>
+<aside class="app-rail" aria-label="应用导航">
+ <a class="app-brand" href="#/" aria-label="OmniDispatch 工作台"><span class="brand-mark" data-icon="sprout"></span><span class="brand-name">OmniDispatch<small>让内容自由生长</small></span></a>
+ <div class="rail-section">工作空间</div><nav id="app-nav" aria-label="工作台导航"><a href="#/" data-icon="panels-top-left" aria-label="工作台" aria-keyshortcuts="Alt+1" title="工作台 · Alt+1"><span class="nav-label">工作台</span></a><a href="#/jobs" data-icon="send" aria-label="发布任务" aria-keyshortcuts="Alt+2" title="发布任务 · Alt+2"><span class="nav-label">发布任务</span></a><a href="#/assets" data-icon="image" aria-label="素材库" aria-keyshortcuts="Alt+3" title="素材库 · Alt+3"><span class="nav-label">素材库</span></a><a href="#/accounts" data-icon="users-round" aria-label="账号" aria-keyshortcuts="Alt+4" title="账号 · Alt+4"><span class="nav-label">账号</span></a><a href="#/agents" data-icon="monitor" aria-label="执行节点" aria-keyshortcuts="Alt+5" title="执行节点 · Alt+5"><span class="nav-label">执行节点</span></a><a href="#/updates" data-icon="refresh-cw" aria-label="通道更新" aria-keyshortcuts="Alt+6" title="通道更新 · Alt+6"><span class="nav-label">通道更新</span></a><a href="#/audit" data-icon="scroll-text" aria-label="操作记录" aria-keyshortcuts="Alt+7" title="操作记录 · Alt+7"><span class="nav-label">操作记录</span></a><a href="#/settings" data-icon="settings-2" aria-label="设置" aria-keyshortcuts="Alt+8" title="设置 · Alt+8"><span class="nav-label">设置</span></a></nav>
+ <div class="rail-bottom"><span class="local-dot"></span><span>本机工作空间<small>数据与授权保存在此电脑</small></span><span data-icon="shield-check"></span></div>
+</aside>
+<div class="sheet">
+ <header id="masthead"><div class="breadcrumb"><span class="crumb-root">工作空间</span><span class="crumb-divider">/</span><span id="app-crumb">工作台</span></div><div class="topbar-actions"><span class="connection-state"><i></i>本机已连接</span><button class="command-trigger" type="button" aria-haspopup="dialog" aria-controls="command-palette" data-open-command><span data-icon="search"></span><span class="command-label">快速切换</span><kbd>Ctrl K</kbd></button></div></header>
+ <main id="main-content" tabindex="-1">
+  <section id="workspace-home" aria-label="发布工作台">
+   <div class="workspace-hero"><div><p class="eyebrow">YOUR PUBLISHING WORKSPACE</p><h1>好内容，<em>从这里生长。</em></h1><p class="hero-description">连接账号，整理素材，让每一次发布都有迹可循。</p></div><div class="hero-actions"><a class="act mute" href="#/assets"><span data-icon="image"></span>导入素材</a><a class="act primary" href="#/jobs?compose=1"><span data-icon="plus"></span>新建发布</a></div></div>
+   <div class="scale" id="scale" aria-label="工作空间概况"></div>
+   <div class="network-heading"><div><span class="section-kicker">NETWORK</span><h2>发布网络<span id="network-count"></span></h2></div><div class="network-actions"><nav id="platform-groups" aria-label="平台分类"></nav><button id="network-detail-toggle" class="text-button" type="button" aria-pressed="false">展开通道</button></div></div>
+   <div id="next-step" class="next-step" aria-live="polite"></div>
+  </section>
+  <div id="canvas" aria-label="平台发布网络"></div><div id="page" hidden></div>
+ </main>
+ <footer><span class="footer-local"><i></i>LOCAL WORKSPACE</span><span class="foot-note" id="footnote">内容与授权始终保存在本机</span><span id="stamp"></span></footer>
+</div>
+<dialog id="command-palette" aria-label="快速切换页面"><div class="command-search"><span data-icon="search"></span><input id="command-search" role="combobox" aria-controls="command-results" aria-autocomplete="list" aria-expanded="false" placeholder="搜索页面或操作…" autocomplete="off" aria-label="搜索页面或操作"><kbd>Esc</kbd></div><div class="command-section-label">前往</div><div id="command-results" role="listbox" aria-label="页面与操作"></div><div class="command-footer"><span>↑ ↓ 选择</span><span>Enter 打开</span></div></dialog>
+<div id="unlock" class="unlock" hidden>
+  <p>远程访问需要口令。</p>
+  <form id="unlock-form">
+    <input name="username" autocomplete="username" value="admin" aria-label="用户名"/>
+    <input name="password" type="password" autocomplete="current-password" placeholder="口令" aria-label="口令"/>
+    <input name="totp" inputmode="numeric" autocomplete="one-time-code" placeholder="动态码" aria-label="动态验证码"/>
+    <button type="submit">进入</button>
+  </form>
+  <p class="unlock-err" id="unlock-err"></p>
+</div>
+
+<script src="/app.js?mvxvv8i2"></script>
+</body>
+</html>

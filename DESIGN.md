@@ -103,3 +103,42 @@ P7：可选 L2 引擎与多节点扩容，按能力与维护收益逐项接入�
 ## 12. 当前执行记录
 
 已使用 SSH Relay 5.4 连接真实 Windows LAPTOP-MCMQHDN4 并核验身份。已在 E:\xxm 新建 OmniDispatch，三个子目录创建成功。现有 E:\项目计划 等目录未改动。当前是 P0，未宣称完成五平台发布、真实账号验收、引擎安装或公网部署。
+
+## 2026-11-01：本机桌面与平台扩展的社区选型
+
+产品运行在 E:\xxm\OmniDispatch，不采用云端托管。原树形布局、器官状态、细线留白与玫雾蜜珀配色保留，通过平台分组维持每屏五个平台与一条支撑枝。
+
+社区核查同时看实际源码、依赖范围与返回证据：
+
+| 项目 | 实际核查 | 采用方式 |
+| --- | --- | --- |
+| dreammis/social-auto-upload | 固定 3847fff01f5434a8a32829833163cd6723cabc59；MIT；源码有抖音、快手、百家号、微博、知乎等 CLI；Python >=3.10,<3.13 | 内置独立 3.12.10 与固定 wheels，适配 argv、账号会话和结构化结果，不与主程序 3.14 混用；不启用上游 B站隐式更新路径 |
+| BadKid90s/Spreado | 固定 v1.2.0/9c96764d，版本内 MIT；实际加载 5 个插件。最新 main 的许可证已变更，不能混淆版本 | 保留固定源码与许可证；扩展抖音、快手，修复单文件漏插件；返回无作品 ID 时待核验 |
+| wechatsync/Wechatsync | 固定 42f61e39，GPL-3.0；公开适配器不少是草稿，豆瓣代码为私密日记；部分 README 通道来自 private 适配器 | 用作协议与能力调研，不将 README 清单冒充可复用自动发布能力；没有复制其 GPL 适配器到本产品 |
+| gitroomhq/postiz-app | AGPL-3.0，多服务与 OAuth 应用部署，海外平台聚合 | 保留候选，不为本机桌面初版引入额外云托管或不完整服务栈 |
+| lumina37/aiotieba | 4.8.3 / Unlicense；当前 client 有读取、管理等接口，但未找到 add_thread/add_post/add_comment | 不把它当作贴吧发帖器；贴吧使用明确标注的桌面填写与确认流程 |
+| xpzouying/xiaohongshu-mcp | v2.5.5 源码确认 /feeds/comment 与 /feeds/comment/reply | 接入评论和回复接口；校验账号、feed_id、xsec_token 和回复对象，缺返回 ID 时仍待核验 |
+
+平台分“社区引擎执行”和“桌面填写、用户确认”两种。后者是实际本机浏览器：绑定独立账号登录态，打开指定编辑器或原帖，填写标题/正文、交付本任务素材，并记录真实作品/草稿链接；不会宣称全自动发布。草稿单独记 drafted，不能增加真实发布成功数。继续编辑草稿必须打开原草稿链接。
+
+任务 action 为 publish/comment/reply，评论目标 URL 与回复 ID 保存在原任务。路由按 action 过滤；评论不能落到只会发新帖的引擎。不同动作分别记录核验证据，评论通过不能自动证明视频发布能力。未知提交不重放。
+
+本轮覆盖登记 23 个平台。新增文字：贴吧、知乎、豆瓣、微博、公众号、头条号、简书、掘金、CSDN、百家号。新增视频：抖音、快手、西瓜、好看、腾讯视频、优酷、爱奇艺、搜狐视频，并保留 B站、小红书、视频号、YouTube、X。公众号不提供泛化的他人文章评论操作；平台网页没有相应编辑能力时不能由浏览器壳凭空补出 API。没有真实授权或实际作品证据时保持未核验，不计为已实测自动发布。
+
+### 小红书浏览器自包含修复
+
+社区 v2.5.5 强制下载 CloakBrowser，分发源在本机返回 403。固定源码 a5c8f7799980ba1fdd501999843eb2d17e4c9a9f，构建 v2.5.5-omni：显式使用随包标准 Chrome for Testing；关闭指纹参数、stealth 注入并移除 headless_browser 的 --no-sandbox。保留 HTTP API，不绕过平台登录或验证码。修改源码与 Apache-2.0 LICENSE、二进制摘要保存在 vendor/xhsmcp 与运行目录 source。脚本 install-xhs-browser.py 仅安装经摘要核对的本地构建，不再访问原 CDN。真实账号未发布。
+
+实机安全软件拦截 Rod 默认的 leakless.exe 后，源码禁用 Leakless；未更改杀毒设置。浏览器退出由 Go 的正常 Close 与 OmniDispatch 原有 Windows Job Object 管理，登录后后台实例交给 supervisor 创建，避免游离子进程。
+
+### 统一桌面比例
+
+所有路由共用按窗口计算的 ui-scale，树图的内部 k 固定为 1，取消首页按内容自行放大与二级页强制缩放的不一致。首页和二级页主内容共用 1120px 基准宽度，统一标题、输入框与动作字阶；resize 只重排当前可见树，不重建表单。验证 check-proportions.py 覆盖三种窗口、八个页面、五组树和输入保留。
+
+桌面 App 导航：固定同一导航条与选中状态、Alt+1…8 切换；新任务未提交内容与幂等意图暂存在当前窗口内存，跨页可恢复，不把授权字段持久化到浏览器存储。
+
+## 2026-11-01 桌面工作台美学与交互重构
+
+参考 Microsoft Fluent 2 Layout（https://fluent2.microsoft.design/layout）、Windows NavigationView（https://learn.microsoft.com/en-us/windows/apps/design/controls/navigationview）、WCAG 2.2 文本对比度（https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html）。采用固定导航与内容网格、4px 间距、渐进展开和明确的状态文本；图标采用 Lucide static 0.468.0 ISC，离线内嵌，完整许可见 THIRD-PARTY.md。Carbon 页面返回403，未把不可读取内容当作调研证据。
+
+保留树、细线、玫雾蜜珀与有机状态图形；改用暖白和浅鼠尾草工作区，玫瑰色只用于焦点与品牌。首页围绕任务计数、下一步与平台发布网络；详细引擎放到平台通道页；任务表单使用标签、分组和主要按钮。固定字体不再随窗口整体缩小，窄窗口收起侧栏文字，内容自然重排。Ctrl+K 快速切换，保留 Alt+1…8、跨页任务草稿和当前任务幂等意图。不改变账号授权、核验门槛、后台调度和真实平台写入权限。

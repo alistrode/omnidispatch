@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OmniDispatch · 来源可达性</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --rose:#E87C8D;
+  --amber:#F9CB8E;
+  --ink:#2E1B19;
+  --ink2:#7A625C;
+  --ink3:#B9A6A0;
+  --hair:rgba(46,27,25,.13);
+  --hair2:rgba(46,27,25,.07);
+  --paper:#FFF9F5;
+  --mono:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
+  --sans:"PingFang SC","HarmonyOS Sans SC","Source Han Sans SC","Noto Sans SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:15px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  letter-spacing:.008em;font-variant-numeric:tabular-nums;
+}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.wash{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    linear-gradient(163deg,
+      rgba(232,124,141,.38) 0%,
+      rgba(238,158,138,.26) 20%,
+      rgba(249,203,142,.28) 44%,
+      rgba(255,246,239,.60) 66%,
+      rgba(255,250,246,0) 86%);
+}
+.sheet{position:relative;z-index:1;max-width:1208px;margin:0 auto;padding:0 56px}
+
+/* masthead */
+header{padding-top:70px}
+.topline{display:flex;justify-content:space-between;align-items:baseline;gap:24px}
+.wordmark{font-size:10.5px;letter-spacing:.36em;font-weight:700}
+.stamp{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;color:var(--ink3)}
+h1{margin:62px 0 0;font-size:54px;line-height:1.12;font-weight:600;letter-spacing:-.025em;max-width:20em}
+h1 em{font-style:normal;color:var(--rose)}
+.lead{margin:24px 0 0;font-size:15px;color:var(--ink2);max-width:30em;line-height:1.75}
+.scale{margin:34px 0 0;display:flex;flex-wrap:wrap;align-items:baseline;font-size:11px;letter-spacing:.06em;color:var(--ink3)}
+.scale span+span::before{content:"·";margin:0 12px;color:var(--ink3);opacity:.6}
+.scale b{font-weight:600;color:var(--ink2);font-family:var(--mono);font-size:11.5px}
+
+/* tabs */
+.tabs{display:flex;gap:38px;margin-top:52px;border-top:1px solid var(--hair)}
+.tab{padding:19px 0 17px;font-size:13.5px;letter-spacing:.05em;color:var(--ink3);
+  border-bottom:1px solid transparent;margin-bottom:-1px;
+  transition:color .45s cubic-bezier(.22,1,.36,1),border-color .45s cubic-bezier(.22,1,.36,1)}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+.tab:hover{color:var(--ink2)}
+
+/* layout */
+main{display:grid;grid-template-columns:minmax(0,1fr) 286px;gap:92px;
+  padding:42px 0 130px;align-items:start}
+.view{min-width:0}
+.view[hidden]{display:none}
+
+/* tree */
+.tree{position:relative}
+.tree::before{content:"";position:absolute;left:9px;top:26px;bottom:28px;width:1px;background:var(--hair)}
+.src{position:relative}
+.node{position:relative;display:grid;align-items:center;width:100%;
+  grid-template-columns:252px minmax(0,1fr) 52px 74px;padding:15px 0 15px 34px}
+.mk{position:absolute;left:5.5px;top:50%;width:7px;height:7px;margin-top:-4px;border-radius:50%;
+  border:1px solid rgba(46,27,25,.30);background:var(--paper);
+  transition:background .45s cubic-bezier(.22,1,.36,1),border-color .45s,transform .45s cubic-bezier(.22,1,.36,1)}
+.src.on .mk{background:var(--rose);border-color:var(--rose);transform:scale(1.3)}
+.node:hover .mk{border-color:var(--rose)}
+.name{display:block;font-weight:600;letter-spacing:-.012em;line-height:1.25;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  transition:color .4s cubic-bezier(.22,1,.36,1)}
+.src.on .name{color:#1F100E}
+.bar{position:relative;height:3px;border-radius:2px;background:rgba(46,27,25,.065);margin-right:26px}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;
+  background:linear-gradient(90deg,var(--rose),var(--amber));
+  transition:width 1.05s cubic-bezier(.16,1,.3,1)}
+.pct{text-align:right;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.dots{display:flex;justify-content:flex-end;gap:6px}
+.d{width:5px;height:5px;border-radius:50%}
+.d.ok{background:rgba(46,27,25,.42)}
+.d.warn{background:var(--rose)}
+.d.down{border:1px solid rgba(46,27,25,.22)}
+.d.na{border:1px dotted rgba(46,27,25,.18)}
+
+/* children */
+.kids{position:relative;margin:0 0 10px;padding:0;display:none}
+.src.on .kids{display:block;animation:unfold .42s cubic-bezier(.22,1,.36,1)}
+@keyframes unfold{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.kid{position:relative;display:flex;align-items:baseline;gap:14px;padding:7px 0 7px 54px}
+.kid::before{content:"";position:absolute;left:9px;top:50%;width:32px;height:1px;background:var(--hair2)}
+.kid .kn{font-size:13px;color:var(--ink2);letter-spacing:.01em;white-space:nowrap}
+.kid .ks{font-size:11.5px;color:var(--ink3);letter-spacing:.05em;white-space:nowrap}
+.kid .kl{font-size:11.5px;color:var(--ink3);font-family:var(--mono);white-space:nowrap}
+.kid.warn .kn{color:#5B3330}
+.kid.warn .ks{color:var(--rose)}
+.kid.down .kn{color:var(--ink3)}
+.kid.down .ks{color:rgba(46,27,25,.28)}
+.kid.na .kn{color:rgba(46,27,25,.25)}
+.kid.na .ks{color:rgba(46,27,25,.20)}
+.treenote{margin:22px 0 0;padding-left:34px;font-size:10.5px;letter-spacing:.05em;color:var(--ink3)}
+
+/* aside */
+.rail{position:sticky;top:52px;padding-left:30px;border-left:1px solid var(--hair)}
+.eyebrow{display:block;font-size:9.5px;letter-spacing:.30em;font-weight:700;color:var(--ink3);text-transform:uppercase}
+.rail h2{margin:16px 0 0;font-size:23px;line-height:1.2;font-weight:600;letter-spacing:-.02em;word-break:break-word}
+.rail .repo{margin:8px 0 0;font-family:var(--mono);font-size:10.5px;color:var(--ink3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rel{list-style:none;margin:34px 0 0;padding:0}
+.rel li{padding:13px 0;border-top:1px solid var(--hair2)}
+.rel li:first-child{border-top:0;padding-top:0}
+.rl{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.rl b{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--ink)}
+.rl .ago{font-size:10.5px;color:var(--ink3);letter-spacing:.04em;white-space:nowrap}
+.rn{margin-top:3px;font-size:11px;color:var(--ink3);letter-spacing:.02em;line-height:1.5}
+.railfoot{margin-top:30px;padding-top:20px;border-top:1px solid var(--hair);font-size:11px;color:var(--ink3);line-height:1.75}
+.rhint{margin:18px 0 0;font-size:12px;color:var(--ink2);line-height:2.0;letter-spacing:.02em}
+.rhint em{font-style:normal;color:var(--ink3)}
+.legend{margin-top:26px;display:flex;gap:16px;font-size:10px;letter-spacing:.06em;color:var(--ink3)}
+.legend i{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.legend .ok{background:rgba(46,27,25,.42)}
+.legend .warn{background:var(--rose)}
+.legend .down{border:1px solid rgba(46,27,25,.22)}
+
+/* regions */
+.rg{padding:21px 0;border-top:1px solid var(--hair2)}
+.rg:first-child{border-top:0;padding-top:6px}
+.rgtop{display:flex;justify-content:space-between;align-items:baseline;gap:20px}
+.rgn{font-size:19px;font-weight:600;letter-spacing:-.012em}
+.rgp{font-family:var(--mono);font-size:12px;color:var(--ink2)}
+.rgbar{position:relative;height:3px;margin-top:14px;border-radius:2px;background:rgba(46,27,25,.06)}
+.rgbar i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;
+  background:linear-gradient(90deg,var(--rose),var(--amber));
+  transition:width 1.05s cubic-bezier(.16,1,.3,1)}
+.rgmeta{margin-top:11px;font-size:11.5px;color:var(--ink3);letter-spacing:.03em}
+.rg.void .rgn,.rg.void .rgp{color:rgba(46,27,25,.30)}
+.rg.void .rgbar i{background:rgba(46,27,25,.14)}
+.rg.chrome{opacity:.42;padding:14px 0 0}
+.rg.chrome .rgn{font-size:11.5px;font-weight:500;letter-spacing:.05em}
+.rg.chrome .rgp{font-size:10.5px}
+.rg.chrome .rgbar{height:1px;margin-top:9px}
+
+/* feed */
+.day{padding:0 0 6px}
+.day+.day{margin-top:26px}
+.dlabel{display:block;font-size:10.5px;letter-spacing:.16em;color:var(--ink3);
+  font-family:var(--mono);padding-bottom:10px;border-bottom:1px solid var(--hair2)}
+.ev{display:grid;grid-template-columns:130px minmax(0,1fr);gap:26px;align-items:baseline;
+  padding:15px 0;border-bottom:1px solid var(--hair2)}
+.ev:last-child{border-bottom:0}
+.evs{font-family:var(--mono);font-size:11.5px;color:var(--ink2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evt{font-family:var(--mono);font-size:12.5px;color:var(--ink2)}
+.evt .act{font-family:var(--sans);margin-left:9px;font-size:11.5px;color:var(--ink3);letter-spacing:.10em}
+.evt .act.w{color:var(--rose)}
+.evn{display:block;font-family:var(--sans);margin-top:4px;font-size:11.5px;color:var(--ink3);letter-spacing:.02em}
+
+footer{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
+  padding:26px 0 64px;border-top:1px solid var(--hair);
+  font-size:10.5px;color:var(--ink3);letter-spacing:.14em}
+
+@media (max-width:1120px){
+  .sheet{padding:0 34px}
+  main{grid-template-columns:1fr;gap:52px}
+  .rail{position:static;border-left:0;padding-left:0;border-top:1px solid var(--hair);padding-top:34px}
+  h1{font-size:40px}
+  .node{grid-template-columns:200px minmax(0,1fr) 48px 68px}
+}
+</style>
+</head>
+<body>
+<div class="wash"></div>
+<div class="sheet">
+
+<header>
+  <div class="topline">
+    <span class="wordmark">OMNIDISPATCH</span>
+    <span class="stamp" id="stamp">—</span>
+  </div>
+
+  <h1>上游一发版，<br>你就<em>拿到</em>。</h1>
+  <p class="lead">十二个来源，只回答一件事：新版本能不能到手。深的技术部分，交给来源项目自己。</p>
+  <div class="scale" id="scale"></div>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab on" data-view="sources">来源</button>
+    <button class="tab" data-view="regions">区域</button>
+    <button class="tab" data-view="feed">跟进</button>
+  </nav>
+</header>
+
+<main>
+  <div class="view" id="view-sources">
+    <div class="tree" id="tree"></div>
+  </div>
+
+  <div class="view" id="view-regions" hidden>
+    <div id="regionlist"></div>
+  </div>
+
+  <div class="view" id="view-feed" hidden>
+    <div id="feedlist"></div>
+  </div>
+
+  <aside class="rail" id="rail"></aside>
+</main>
+
+<footer>
+  <span>OMNIDISPATCH</span>
+  <span>原型 · 2026-11-01</span>
+</footer>
+
+</div>
+<script>
+/* ── 时间基准 ─────────────────────────────────────────────── */
+const NOW = new Date('2026-11-01T13:52:00+08:00');
+const DAY = 864e5;
+const ago = d => {
+  const n = Math.round((NOW - new Date(d)) / DAY);
+  if (n <= 0) return '今天';
+  if (n === 1) return '昨天';
+  if (n < 30) return n + ' 天前';
+  if (n < 365) return Math.round(n / 30) + ' 个月前';
+  return Math.round(n / 365) + ' 年前';
+};
+
+/* ── 来源 · 渠道可达性 · 最近发版 ─────────────────────────── */
+const sources = [
+  { id:'sau', name:'social-auto-upload', repo:'dreammis/social-auto-upload', w:34,
+    ch:[ {n:'GitHub API',s:'ok',l:'即时'}, {n:'Git 标签',s:'ok',l:'即时'},
+         {n:'镜像加速',s:'warn',l:'滞后 1 天'}, {n:'粘性代理',s:'ok',l:'即时'} ],
+    rel:[ {v:'v1.0.0-skills.2',d:'2026-10-22',m:'预发布 · 无构建产物'},
+          {v:'v1.0.0-skills.1',d:'2026-10-09',m:'预发布 · 无构建产物'},
+          {v:'v1.0.0',d:'2026-09-28',m:'正式版 · 源码包'} ] },
+
+  { id:'matrixmedia', name:'matrix-media', repo:'hanliang97/MatrixMedia', w:27,
+    ch:[ {n:'GitHub API',s:'ok',l:'即时'}, {n:'发布资产',s:'ok',l:'即时'},
+         {n:'镜像加速',s:'ok',l:'即时'}, {n:'粘性代理',s:'ok',l:'即时'},
+         {n:'Git 标签',s:'warn',l:'滞后 2 天'} ],
+    rel:[ {v:'v0.13.2',d:'2026-10-24',m:'11 个构建产物 · 全平台'},
+          {v:'v0.13.1',d:'2026-10-11',m:'11 个构建产物'},
+          {v:'v0.13.0',d:'2026-09-27',m:'10 个构建产物'} ] },
+
+  { id:'spreado', name:'spreado', repo:'BadKid90s/Spreado', w:14,
+    ch:[ {n:'GitHub API',s:'ok',l:'即时'}, {n:'发布资产',s:'ok',l:'即时'},
+         {n:'镜像加速',s:'ok',l:'即时'} ],
+    rel:[ {v:'v1.2.0',d:'2026-05-02',m:'6 个构建产物'},
+          {v:'v1.1.6',d:'2026-03-11',m:'6 个构建产物'},
+          {v:'v1.1.5',d:'2026-01-24',m:'5 个构建产物'} ] },
+
+  { id:'postiz', name:'postiz', repo:'gitroomhq/postiz-app', w:14,
+    ch:[ {n:'GitHub API',s:'ok',l:'即时'}, {n:'包注册源',s:'ok',l:'滞后 6 小时'},
+         {n:'镜像加速',s:'warn',l:'滞后 1 天'} ],
+    rel:[ {v:'v2.25.3',d:'2026-10-24',m:'无构建产物 · 容器镜像'},
+          {v:'v2.25.2',d:'2026-10-17',m:'无构建产物'},
+          {v:'v2.25.1',d:'2026-10-10',m:'无构建产物'} ] },
+
+  { id:'xhsmcp', name:'xiaohongshu-mcp', repo:'xpzouying/xiaohongshu-mcp', w:13,
+    ch:[ {n:'GitHub API',s:'ok',l:'即时'}, {n:'发布资产',s:'ok',l:'即时'},
+         {n:'镜像加速',s:'ok',l:'即时'}, {n:'粘性代理',s:'warn',l:'滞后 1 天'},
+         {n:'包注册源',s:'na',l:'不适用'} ],
+    rel:[ {v:'v2.5.5',d:'2026-09-22',m:'6 个构建产物 · 40 天未再发'},
+          {v:'v2.5.4',d:'2026-09-04',m:'6 个构建产物'},
+          {v:'v2.5.3',d:'2026-08-19',m:'6 个构建产物'} ] },
+
+  { id:'biliup', name:'biliup', repo:'biliup/biliup', w:13,
+    ch:[ {n:'GitHub API',s:'ok',l:'即时'}, {n:'发布资产',s:'ok',l:'即时'},
+         {n:'镜像加速',s:'ok',l:'即时'}, {n:'粘性代理',s:'ok',l:'即时'} ],
+    rel:[ {v:'v1.3.4',d:'2026-10-22',m:'10 个构建产物 · 含桌面安装包'},
+          {v:'v1.3.3',d:'2026-09-30',m:'10 个构建产物'},
+          {v:'v1.3.2',d:'2026-09-11',m:'9 个构建产物'} ] },
+
+  { id:'mixpost', name:'mixpost', repo:'inovector/mixpost', w:8,
+    ch:[ {n:'GitHub API',s:'ok',l:'即时'}, {n:'包注册源',s:'ok',l:'即时'},
+         {n:'镜像加速',s:'warn',l:'滞后 3 天'} ],
+    rel:[ {v:'2.6.0',d:'2026-03-16',m:'无构建产物 · 230 天未发'},
+          {v:'2.5.2',d:'2026-01-20',m:'无构建产物'},
+          {v:'2.5.1',d:'2025-12-04',m:'无构建产物'} ] },
+
+  { id:'ytuploader', name:'youtubeuploader', repo:'porjo/youtubeuploader', w:7,
+    ch:[ {n:'GitHub API',s:'warn',l:'滞后 4 小时'}, {n:'发布资产',s:'ok',l:'即时'},
+         {n:'粘性代理',s:'ok',l:'即时'}, {n:'镜像加速',s:'down',l:'不可达'} ],
+    rel:[ {v:'v1.25.5',d:'2025-08-14',m:'9 个构建产物 · 444 天未发'},
+          {v:'v1.25.4',d:'2025-06-02',m:'9 个构建产物'},
+          {v:'v1.25.3',d:'2025-04-18',m:'8 个构建产物'} ] },
+
+  { id:'postbot', name:'postbot', repo:'gitcoffee-os/postbot', w:6,
+    ch:[ {n:'GitHub API',s:'down',l:'404 无发行'}, {n:'镜像加速',s:'ok',l:'即时'} ],
+    rel:[ {v:'—',d:'',m:'从未发布正式版本，只跟踪提交'} ] },
+
+  { id:'resin', name:'resin', repo:'Resinat/Resin', w:6,
+    ch:[ {n:'GitHub API',s:'ok',l:'即时'}, {n:'发布资产',s:'ok',l:'即时'},
+         {n:'镜像加速',s:'ok',l:'即时'}, {n:'粘性代理',s:'na',l:'不适用'} ],
+    rel:[ {v:'v1.3.0',d:'2026-10-21',m:'5 个构建产物 · 出口能力同步'},
+          {v:'v1.2.4',d:'2026-10-02',m:'5 个构建产物'},
+          {v:'v1.2.3',d:'2026-09-15',m:'5 个构建产物'} ] },
+
+  { id:'tweepy', name:'tweepy', repo:'tweepy/tweepy', w:4,
+    ch:[ {n:'GitHub API',s:'ok',l:'即时'}, {n:'包注册源',s:'ok',l:'即时'},
+         {n:'发布资产',s:'ok',l:'即时'}, {n:'镜像加速',s:'ok',l:'即时'} ],
+    rel:[ {v:'v4.17.0',d:'2026-07-02',m:'8 个构建产物 · 含 sigstore 签名'},
+          {v:'v4.16.0',d:'2026-04-09',m:'8 个构建产物'},
+          {v:'v4.15.0',d:'2026-01-15',m:'7 个构建产物'} ] },
+
+  { id:'patchright', name:'patchright', repo:'Kaliiiiiiiiii-Vinyzu/patchright', w:3,
+    ch:[ {n:'GitHub API',s:'ok',l:'即时'}, {n:'包注册源',s:'ok',l:'即时'},
+         {n:'镜像加速',s:'warn',l:'滞后 2 天'} ],
+    rel:[ {v:'v1.64.1',d:'2026-10-15',m:'无构建产物'},
+          {v:'v1.64.0',d:'2026-10-08',m:'无构建产物'},
+          {v:'v1.63.6',d:'2026-09-26',m:'无构建产物'} ] }
+];
+
+/* ── 区域：独立权重，不与节点占比互推 ─────────────────────── */
+const regions = [
+  { n:'小红书', w:56, meta:'5 个来源 · 4 条可用渠道 · 最近 8 天有新版本', void:false },
+  { n:'B 站',   w:47, meta:'4 个来源 · 3 条可用渠道 · 最近 8 天有新版本', void:false },
+  { n:'视频号', w:44, meta:'4 个来源 · 3 条可用渠道 · 最近 8 天有新版本', void:false },
+  { n:'出口与支撑', w:36, meta:'3 个来源 · 3 条可用渠道 · 最近 11 天有新版本', void:false },
+  { n:'YouTube', w:31, meta:'4 个来源 · 2 条可用渠道 · 最近 8 天有新版本', void:false },
+  { n:'X',      w:4,  meta:'4 个来源 · 0 条可用渠道 · 无可用路径', void:true },
+  { n:'界面',   w:1,  meta:'不属于任何区域 · 只保留存在感', void:false, chrome:true }
+];
+
+/* ── 跟进 ─────────────────────────────────────────────────── */
+const feed = [
+  { d:'2026-10-24', ev:[
+    { s:'matrix-media', v:'v0.13.2', a:'到达', n:'API、发布资产、镜像加速、粘性代理 四条同时可达', w:false },
+    { s:'postiz', v:'v2.25.3', a:'到达', n:'包注册源滞后 6 小时，镜像加速未确认', w:false } ] },
+  { d:'2026-10-22', ev:[
+    { s:'biliup', v:'v1.3.4', a:'到达', n:'10 个构建产物 · 含 Windows 桌面安装包', w:false },
+    { s:'social-auto-upload', v:'v1.0.0-skills.2', a:'到达', n:'预发布 · 无构建产物 · 镜像加速滞后 1 天', w:true } ] },
+  { d:'2026-10-21', ev:[
+    { s:'resin', v:'v1.3.0', a:'到达', n:'出口能力同步，粘性代理路径不用重配', w:false } ] },
+  { d:'2026-10-17', ev:[
+    { s:'patchright', v:'镜像加速', a:'降级', n:'滞后 2 天 · 官方路径不受影响', w:true } ] },
+  { d:'2026-10-15', ev:[
+    { s:'patchright', v:'v1.64.1', a:'到达', n:'无构建产物', w:false } ] },
+  { d:'2026-09-22', ev:[
+    { s:'xiaohongshu-mcp', v:'v2.5.5', a:'到达', n:'6 个构建产物 · 至今 40 天未再发，仍为最新', w:false } ] }
+];
+
+/* ── 百分比：最大余数法，合计精确 100.0 ───────────────────── */
+function shares(ws){
+  const t = ws.reduce((a,b)=>a+b,0) || 1;
+  const raw = ws.map(w => w / t * 100);
+  const out = raw.map(x => Math.floor(x * 10) / 10);
+  let drift = Math.round((100 - out.reduce((a,b)=>a+b,0)) * 10);
+  const order = raw.map((x,i)=>[x - out[i], i]).sort((a,b)=>b[0]-a[0]).map(x=>x[1]);
+  let k = 0;
+  while (drift > 0) { out[order[k % order.length]] = +(out[order[k % order.length]] + 0.1).toFixed(1); drift--; k++; }
+  return out;
+}
+
+/* ── 派生 ─────────────────────────────────────────────────── */
+const chAll = sources.flatMap(s => s.ch);
+const okCount = chAll.filter(c => c.s === 'ok').length;
+const warnCount = chAll.filter(c => c.s === 'warn').length;
+const downCount = chAll.filter(c => c.s === 'down').length;
+const nodeShare = shares(sources.map(s => s.w));
+const maxShare = Math.max(...nodeShare);
+const fontOf = sh => (12.5 + 9.5 * Math.pow(sh / maxShare, .80)).toFixed(1) + 'px';
+const barOf  = sh => (sh / maxShare * 100).toFixed(2);
+
+/* ── 刻度 ─────────────────────────────────────────────────── */
+document.getElementById('stamp').textContent =
+  '来源跟进 · ' + new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',
+  month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(NOW);
+
+document.getElementById('scale').innerHTML = [
+  ['来源', sources.length], ['渠道', chAll.length], ['可达', okCount],
+  ['降级', warnCount], ['不可达', downCount],
+  ['无路径区域', regions.filter(r => r.void).length]
+].map(([k,v]) => `<span>${k} <b>${v}</b></span>`).join('');
+
+/* ── 来源树 ───────────────────────────────────────────────── */
+const treeEl = document.getElementById('tree');
+let selected = 'sau', currentView = 'sources';
+
+treeEl.innerHTML = sources.map((s, i) => {
+  const dots = s.ch.slice(0, 5).map(c => `<i class="d ${c.s}"></i>`).join('');
+  return `
+  <div class="src${s.id === selected ? ' on' : ''}" data-id="${s.id}">
+    <button class="node" data-id="${s.id}">
+      <span class="mk"></span>
+      <span class="name" style="font-size:${fontOf(nodeShare[i])}">${s.name}</span>
+      <span class="bar"><i style="width:${barOf(nodeShare[i])}%"></i></span>
+      <span class="pct">${nodeShare[i].toFixed(1)}%</span>
+      <span class="dots">${dots}</span>
+    </button>
+    <div class="kids">
+      ${s.ch.map(c => `
+        <div class="kid ${c.s}">
+          <span class="kn">${c.n}</span>
+          <span class="ks">${{ok:'可达',warn:'降级',down:'不可达',na:'不适用'}[c.s]}</span>
+          <span class="kl">${c.l}</span>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}).join('') + `<p class="treenote">条形按最大节点归一；右侧百分比是真实占比，合计 100%。点开一个来源，看它的每条路。</p>`;
+
+/* ── 右栏 ─────────────────────────────────────────────────── */
+const rail = document.getElementById('rail');
+const legendHTML = `<div class="legend">
+  <span><i class="ok"></i>可达</span>
+  <span><i class="warn"></i>降级</span>
+  <span><i class="down"></i>不可达</span>
+</div>`;
+
+function asideSources(id){
+  const s = sources.find(x => x.id === id);
+  const okRel = s.rel.filter(r => r.v !== '—');
+  const span = okRel.length > 1
+    ? Math.round((new Date(okRel[0].d) - new Date(okRel[okRel.length-1].d)) / DAY) : 0;
+  const gap = okRel.length > 1 ? Math.round(span / (okRel.length - 1)) : 0;
+
+  rail.innerHTML = `
+    <span class="eyebrow">最近发版</span>
+    <h2>${s.name}</h2>
+    <p class="repo">${s.repo}</p>
+    <ol class="rel">
+      ${s.rel.map(r => `
+        <li>
+          <div class="rl"><b>${r.v}</b><span class="ago">${r.d ? ago(r.d) : '—'}</span></div>
+          <div class="rn">${r.m}</div>
+        </li>`).join('')}
+    </ol>
+    <div class="railfoot">
+      ${okRel.length > 1
+        ? `最近三次跨度 ${span} 天，平均 ${gap} 天一次。<br>版本、签名与运行方式由来源项目自持，这里不解释。`
+        : `此来源没有可对照的发行节奏。<br>版本、签名与运行方式由来源项目自持，这里不解释。`}
+    </div>
+    ${legendHTML}`;
+}
+
+function asideRegions(){
+  rail.innerHTML = `
+    <span class="eyebrow">口径</span>
+    <h2>独立算的。</h2>
+    <p class="rhint">可用渠道 <em>×8</em><br>＋ 在用来源 <em>×4</em><br>＋ 近 30 天活跃 <em>×3</em><br>＋ 待接入来源 <em>×2</em></p>
+    <div class="railfoot">与来源树的节点占比分开计算，两者互不推导。<br>没有可用渠道的区域掉到最后，但不被抹掉。</div>
+    ${legendHTML}`;
+}
+
+function asideFeed(){
+  rail.innerHTML = `
+    <span class="eyebrow">记录规则</span>
+    <h2>只记到达。</h2>
+    <p class="rhint">到达，或者不到达。<br>不发通知，不建收件箱，不做未读。</p>
+    <div class="railfoot">最近 6 天 8 条。<br>版本号归来源项目所有，这里只登记它到了没有。</div>
+    ${legendHTML}`;
+}
+
+const renderAside = v => v === 'regions' ? asideRegions()
+  : v === 'feed' ? asideFeed() : asideSources(selected);
+
+/* ── 区域列表 ─────────────────────────────────────────────── */
+const regionShare = shares(regions.map(r => r.w));
+document.getElementById('regionlist').innerHTML = regions.map((r, i) => `
+  <div class="rg${r.void ? ' void' : ''}${r.chrome ? ' chrome' : ''}">
+    <div class="rgtop"><span class="rgn">${r.n}</span><span class="rgp">${regionShare[i].toFixed(1)}%</span></div>
+    <div class="rgbar"><i style="width:${regionShare[i]}%"></i></div>
+    <div class="rgmeta">${r.meta}</div>
+  </div>`).join('');
+
+/* ── 跟进列表 ─────────────────────────────────────────────── */
+const wd = ['周日','周一','周二','周三','周四','周五','周六'];
+document.getElementById('feedlist').innerHTML = feed.map(day => {
+  const d = new Date(day.d + 'T09:00:00+08:00');
+  const label = `${String(d.getMonth()+1).padStart(2,'0')} 月 ${String(d.getDate()).padStart(2,'0')} 日 · ${wd[d.getDay()]} · ${ago(day.d)}`;
+  return `<div class="day"><span class="dlabel">${label}</span>
+    ${day.ev.map(e => `
+      <div class="ev">
+        <span class="evs">${e.s}</span>
+        <span class="evt">${e.v}<span class="act${e.w ? ' w' : ''}">${e.a}</span>
+          <span class="evn">${e.n}</span></span>
+      </div>`).join('')}
+  </div>`;
+}).join('');
+
+/* ── 交互 ─────────────────────────────────────────────────── */
+asideSources(selected);
+
+treeEl.addEventListener('click', e => {
+  const btn = e.target.closest('.node'); if (!btn) return;
+  selected = btn.dataset.id;
+  document.querySelectorAll('.src').forEach(el => el.classList.toggle('on', el.dataset.id === selected));
+  renderAside(currentView);
+});
+
+document.getElementById('tabs').addEventListener('click', e => {
+  const b = e.target.closest('.tab'); if (!b) return;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t === b));
+  currentView = b.dataset.view;
+  document.querySelectorAll('.view').forEach(el => el.hidden = el.id !== 'view-' + currentView);
+  renderAside(currentView);
+});
+
+/* 原型：#regions / #feed 直接落到对应视图，便于截图 */
+const h = location.hash.slice(1);
+if (h === 'regions' || h === 'feed') {
+  const t = document.querySelector('.tab[data-view="' + h + '"]');
+  if (t) t.click();
+}
+</script>
+</body>
+</html>

@@ -1,54 +1,34 @@
-# OmniDispatch 当前交接
+# OmniDispatch 本机桌面版交接
 
-日期：2026-10-27（北京时间）。本文件记录已完成范围及仍待完成的部分，不把模拟结果当作平台发布验收。
+更新：2026-11-01（北京时间）。工程根目录 E:\xxm\OmniDispatch；产品运行在 release，源码在 dev，备份在 backups。
 
-## 真实部署
+## 当前结果
 
-- 主机：LAPTOP-MCMQHDN4，使用 SSH Relay 5.4 核验后操作。
-- 根目录：E:\xxm\OmniDispatch；dev 源码、backups 备份、release 运行环境。旧 E:\项目计划 等目录保留。
-- Windows 后台：OmniDispatch-Hub-Agent 计划任务；专用 OmniDispatchRun 普通账号，实测 administrator=false。赋予该账号 SeBatchLogonRight，未加入管理员组。
-- Hub 仅监听 127.0.0.1:8791；监督锁端口 8792；Resin 仅监听 127.0.0.1:2260。
-- release 内置 CPython 3.14.10 与固定生产依赖。state 的管理员/用户/应用 ACL 已限制。发布者签名私钥在 backups/update-signer-private，应用账号不可读取。
-- 初始登录账号 admin；初始密码仅位于 release/state/ADMIN-CREDENTIALS.private.txt，未上传仓库。
-- 临时公网入口由本应用自己的 cloudflared 提供。当前进程观察到 https://professional-conf-addresses-intranet.trycloudflare.com ，远端电脑通过 HTTPS 回查 /api/health 为 200。本云执行环境请求同类域名遭 Cloudflare 403 拦截；这不等于所有访问来源都能打开。进程重建域名变化，最新地址由 supervisor 自动写入 release/state/PUBLIC-URL.txt。生产固定域名尚未配置。
+- Windows 原生桌面入口：release\OmniDispatch.exe；Start.cmd 打开该 EXE；窗口关闭收进托盘。后台任务独立运行，不因关闭界面中断发布。
+- 桌面工作台重构：固定导航、暖白与浅鼠尾草底色、玫瑰焦点色、统一字号与间距。保留树形发布网络，首页聚焦任务概况和下一步，详细引擎进入平台通道页。
+- Ctrl+K 快速切换，Alt+1…8 导航；新建发布采用标签表单、内容分组与主要操作。任务草稿在窗口内跨页保留，窄窗口折叠导航文字而不缩小整页字号。
+- 已登记 23 个平台。新增文字覆盖贴吧、知乎、豆瓣、微博、公众号、头条号、简书、掘金、CSDN、百家号；视频包含抖音、快手、西瓜、好看、腾讯视频、优酷、爱奇艺、搜狐视频，并保留 B站、小红书、视频号、YouTube、X。
+- 社区选型与版本依据见 dev\DESIGN.md。已集成固定版本 social-auto-upload 与 Spreado，不把 Wechatsync 的草稿或私有适配器宣传为现成的全自动发布能力。
+- 通道明确区分社区引擎执行与本机桌面确认。桌面确认通道实际打开独立账号浏览器，填文字、上传本任务素材，由用户在平台页面确认并记录实际链接。
+- 任务支持发内容、评论原帖、回复指定评论。目标平台链接和回复对象固定在账本，路由按动作过滤；公众号不提供泛化的他人文章评论操作。
+- 草稿单独记 drafted；继续编辑使用原草稿链接，不新建另一篇。未知结果保留核验流程，不自动重发。
+- 小红书引擎固定源码构建 v2.5.5-omni，直接使用随包标准 Chromium；不下载专用浏览器，不启用指纹伪装，保留 sandbox。修改源码、许可证与摘要随包保存。
+- 本机服务为 1.1.0-desktop，监听 127.0.0.1:8791；失效公网隧道已关闭。用户数据库、vault.key、授权、素材和账号状态均保留在本机。
 
-## 已验证
+## 验证事实
 
-1. Windows：19 项测试通过，含同账号并发隔离、提交结果未知保护、旧租约拒绝、提交前切换、授权/限流处理、CSRF、TOTP 一次性恢复码、签名更新与路径防护、分块上传幂等、原生 Job Object 回收。
-2. 云端：核心测试通过；并发、幂等、租约在 PostgreSQL 17.6 上重复验证。原生 Windows 进程测试在 Linux 跳过，未冒充通过。
-3. Docker：真实多阶段镜像构建通过，CPython 3.14.10；实际以 UID 10001 启动，连接 PostgreSQL 完成登录、创建任务和取消任务，全程未向平台发布。
-4. 浏览器：九个页面、登录、账号创建、无效表单拒绝、桌面/窄屏布局及分块上传展示经过 Chromium 操作。远端 Windows 的管理员登录与 Agent 在线也由实际服务 API 验证。
-5. Windows 主服务实际返回 health ok、SQLite、管理员登录通过、匿名请求被拒绝、Agent 在线。19 项测试不包含任何真实平台作品发布。
+- Windows 隔离测试：56 项，失败 0（后端代码未因视觉重构修改）。
+- 新界面实机 Chromium：1404×845、900×640、1920×1080；首页一屏、页面同宽、字阶一致，平台详情、Ctrl+K、草稿保留、评论回复和通道下钻检查通过。
+- 原生桌面：13 个路由/分组巡检，脚本错误 0；根页 scrollHeight=845，viewportHeight=845。
+- 内置 Chromium 使用本地内存表单验证标题/评论填写、回复目标展示；无平台写入。
+- 本轮真实平台发布数为 0。尚缺真实扫码、OAuth、账号发布权限与作品验收；新增通道未被伪装成已实测可用。平台不提供网页编辑器或 API 时不能凭空补齐服务端能力。
 
-## 真实引擎状态
+## 使用与维护
 
-- xhs-mcp v2.5.5：程序安装，--help 返回零；未启动账号专属实例，未登录平台。
-- youtubeuploader v1.25.5：程序安装，--help 返回零；无 OAuth 频道授权。
-- Spreado v1.2.0：程序安装，--help 返回零；未导入小红书/视频号账号。
-- ffprobe 5.1.0：程序安装，版本检查通过。
-- Resin v1.3.0：已配置随机私密管理/代理 token，实际监听本机端口；没有导入可信代理节点。初次 --help 因缺少必需环境变量返回 1，后续启动使用明确环境配置，未将初次检查伪报为成功。
-- Agent 已配置 xapi-x、ytuploader-youtube、spreado-xiaohongshu、spreado-tencent 的本机程序/版本；注册表中所有发布通道默认未核验、未启用。
+双击桌面 OmniDispatch 图标或 release\OmniDispatch.exe。先在账号页建立固定账号，再进入通道页接入本机引擎并登录。浏览器通道在网站完成登录后，使用随页面板保存账号绑定；登录态加密保存在本机。社区引擎与浏览器账号各自独立，不随机选平台里的第一个账号。
 
-## 更新机制
+首次发布使用通道页“首次核验发布”；评论须填写原帖链接，回复须指定目标评论。桌面通道在任务详情点击“在桌面继续”。引擎或平台没有返回真实作品 ID 时，回到任务核验结果。
 
-已实现：每日 GitHub 版本发现、受信 Ed25519 签名包、独立版本槽、同机 Agent 解析活动/灰度版本、测试账号专用灰度通道、24 小时与每条在用通道至少三次成功的提升门槛、回滚、可选签名发布源、防元数据过期与代次回退。
+后台计划任务 OmniDispatch-Hub-Agent，专用普通用户 OmniDispatchRun。只管理本应用进程，不操作 SSH Relay 或其他软件。源码升级保留 release\state；不要把 state、Cookie、私钥、原始日志和用户浏览器缓存加入源码或运行包。
 
-当前已配置受信公钥；未配置 OMNI_UPDATE_FEED_URL，OMNI_AUTO_PROMOTE 为关闭。现阶段自动发现开启，自动生产升级没有启用。灰度没有真实账号和真实样本，未开始计为验收通过。跨节点二进制分发、Hub 自更新、通用凭证迁移和不可逆数据库回滚仍未实现。
-
-## 完整目标尚未完成的部分
-
-- 五平台账号授权与实际作品验收尚缺；本轮真实平台发布数为零。
-- X API 适配器当前只支持纯文本。X 视频/浏览器通道未实现。
-- sau/Spreado/biliup/MatrixMedia 的 CLI 路径已封装，但缺少结构化平台 ID 时转 needs_verify；sau B站隐式更新尚未隔离，因此该通道禁止启用。
-- sau、biliup、MatrixMedia 尚未完成本机安装与平台登录；biliup 的用途限制未确认。
-- Postiz 写入、Mixpost Lite 能力与接入、postbot 扩展接管仍为未完成的 L2 候选；“每平台两条实测独立通道”尚未达到。
-- Resin 管理 API 自动换绑、地区/进程级出口实测、多节点出口资源、平台级全局配额策略和告警服务仍待实现/验收；当前保守策略遇风控、未知结果或未验证出口会暂停。
-- PostgreSQL 容器已进行实际集成验证；Windows 当前运行 SQLite。没有未声明的自动迁移。
-
-## 维护
-
-停止本应用：以管理员执行 scripts/stop-windows.ps1；它只处理专用应用账号与本应用路径/隧道范围的进程。正常关闭监督进程时由 Windows Job Object 回收子进程。不要停止 SSH Relay 或用户其他应用。
-
-后续更新必须保留 release/state 与 backups/update-signer-private，不将其打入包或提交 Git。源码备份在 backups。原始凭证、私钥和原始运行日志不上传。
-
-最终浏览器补充：通过已认证 SSH 的回环转发访问真实 Windows 服务，完成管理员登录、九个页面浏览与退出；未发现前端运行错误，未创建平台作品。该结果验证 Windows 上的真实 Web 服务，独立于 Cloudflare 多地区公网可达性。
+构建与维护命令索引在 dev\.agents\skills\omnidispatch\SKILL.md。完整本机分发包由 scripts\package-desktop.py 生成，包含两套 Python、发布浏览器与 WebView2 Fixed Version Runtime，并单独生成 SHA-256；组包与独立解压检查以实际后续输出为准。

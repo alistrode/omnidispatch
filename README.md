@@ -1,60 +1,53 @@
-# OmniDispatch
+# OmniDispatch 1.1.0-desktop 交付
 
-五平台内容发布中枢：固定账号、持久任务账本、多通道候选、提交结果未知保护、独立 Agent、凭证加密与受控更新。
+目标仓库：https://github.com/alistrode/omnidispatch 。当前完整源码、有效维护脚本与补丁、原始测试依赖、自包含免安装运行包一起交付。
 
-## Windows 已部署目录
+- 直接使用（推荐）：下载完整 Windows x64 运行包
+  `https://github.com/alistrode/omnidispatch/releases/download/v1.1.0/OmniDispatch-Desktop-Windows-x64.zip`
+  解压出 `OmniDispatch` 文件夹，双击其中的 `OmniDispatch.exe`。SHA-256 `211d6534fcec9d51ecb4d9a71da400e6178dad1692c79fa2c7412b7489367a4e`，见 packages/DOWNLOAD.md。
+- 或者用仓库脚本：`Start-Packaged.cmd` 会先按 `packages/*.sha256` 核对，缺包时从同一 Release 下载，再解压启动。
+- 开发：查看 DEPENDENCIES.md 与 `.agents/skills/omnidispatch/SKILL.md`；发行与下载验收流程见 `.agents/skills/omnidispatch-delivery/SKILL.md`。所有实际采用的版本、环境恢复和维护命令均有索引。
+- 运行包为什么不进 Git：单文件 1.0 GB 超过 GitHub 100 MB 上限（Git LFS 免费额度也不够），因此作为 Release 附件发布；仓库只保留摘要、清单与源码。
+- 当前运行包的真实数据不在仓库：state、授权、Cookie、私钥、原始日志、调试截图和构建缓存均排除。当前 SHA-256 与文件清单见 packages 和 DELIVERY-MANIFEST.json。
+- 本轮下载回验记录见 VERIFICATION.md。旧 packages/OmniDispatch-0.1.0-windows.zip 只保留历史，不自动继承当前包的验收结论。
 
-`E:\xxm\OmniDispatch`，dev 源码、backups 备份、release 独立运行环境。release 内置官方 Python 与生产依赖，不使用系统 Python。`Start.cmd` 打开本机 http://127.0.0.1:8791；部署脚本安装专用非管理员账号及唯一的 `OmniDispatch-Hub-Agent` 计划任务，系统启动后运行 Hub/Agent。任务只管理本应用进程，不终止其他程序。
+---
 
-初始化凭据仅存本机 `release\state\ADMIN-CREDENTIALS.private.txt`，登录后在“安全设置”修改密码并启用 TOTP。恢复码仅展示一次；验证码框也接受未使用的恢复码。本地管理员可用 `runtime\python.exe -m omnidispatch.cli --state state reset-admin` 恢复访问，该操作撤销所有会话和 TOTP。
+# OmniDispatch 桌面版
 
-`release\state` 含私钥、凭证与令牌，严格 ACL，禁止上传仓库/打包。SQLite 使用 WAL；正式并发节点部署可设置 PostgreSQL URL。只支持初始 schema v1；未来 schema 迁移必须明确实现，当前不承诺通用自动迁移。
+Windows 本机内容发布工作台。保留来源树、器官状态、细线与留白、玫雾和蜜珀配色；数据和凭证保存在本机，不依赖云端托管。
 
-## 已实现的应用能力
+双击 `OmniDispatch.exe` 或 `Start.cmd`。关闭窗口收进系统托盘；托盘可重新打开或退出桌面窗口，后台任务继续。已有后台会复用，不重复初始化账号。新目录首次运行会初始化本地数据库和节点。完整目录包含 Python、生产依赖、浏览器运行时和引擎；不要只复制 EXE。
 
-- 管理员登录、持久登录节流、CSRF/Origin 检查、TOTP/一次性恢复码、会话撤销。
-- 五平台账号及独立通道授权，Fernet 加密，公开接口不回显凭证。
-- 8 MiB 分块图片/视频上传、跨刷新续传、分块重试与幂等合并、定时任务、幂等入队、同账号串行、租约续期与执行代次、审计与 SSE。
-- 提交前明确故障可以同账号切通道；提交过程中断转 needs_verify 并锁定账号，核验前不自动重发。
-- 限流冷却、账号授权过期暂停、风控暂停且不擅自换号/换 IP；未经验证的代理链路停止执行。
-- Agent 出站认证、撤销、只读引擎检查、任务固定版本、任务范围素材下载。
-- 每日发现上游版本、独立签名包隔离安装、防压缩包路径穿越、版本槽、24h/实际样本灰度门槛、同机 Agent 原生版本槽解析、切换与回滚。
-- Vue3 九个管理页面、响应式布局、无演示成功数据。
+本机安装位置：`E:\xxm\OmniDispatch\release`。源码在 `dev`，备份在 `backups`。`release\state` 保存真实数据和密钥，禁止加入分发包。桌面浏览器缓存位于当前用户 `%LOCALAPPDATA%\OmniDispatch\WebView2`。
 
-## 通道的真实边界
+## 使用
 
-通道注册表中的项目是候选，不等于已安装、已授权或已验收。路由默认全部关闭。先在 Agent 私密配置中填入本机真实程序路径和固定版本，节点只读检查通过后，在界面配置版本，记录真实发布作品 ID 的管理员核验，再启用。人工填写 ID 是管理员证明，不伪称系统自动验证了该平台作品。
+1. 账号页建立固定发布账号。X 填用户 OAuth 令牌与用户 ID；YouTube 导入官方 OAuth 客户端 JSON、令牌 JSON 和频道 ID。
+2. 通道页选择已安装版本，接入本机引擎。B站、小红书与视频号可从桌面扫码；选择具体账号，再导入登录态。每个账号使用独立目录，禁止按平台随机选账号。
+3. 素材页上传图片或视频；重新选择同一文件可恢复分块上传。
+4. 通道页点击「首次核验发布」，选择素材和必需平台参数后提交。首次核验允许明确指定尚未启用的通道，不绕过账号、节点、版本与素材检查。
+5. 引擎返回真实作品 ID 才自动计成功。上游只返回“成功”但没有 ID 时，任务停在待核验；核对平台后填真实 ID 或明确确认未发布。未知结果不会自动重发。
+6. 核验通过后启用通道，正常任务进入队列，支持定时、重试、取消和审计。
 
-X API 适配器支持用户 OAuth token 的纯文本发布。youtubeuploader 使用 OAuth JSON，并从结构化输出读取实际 ID。xhs-mcp 需要每账号独立实例与共享本机素材路径。sau、Spreado、biliup、MatrixMedia 使用固定 CLI argv，不通过 shell 拼接；缺少结构化平台 ID 时进入 needs_verify，不能把退出码零当发布成功。视频发布必须有 ffprobe。sau 的 B站通道因上游隐式自动更新尚未隔离而禁止启用。Postiz 写入接口、Mixpost、postbot 和 X 浏览器通道未完成集成，保持候选关闭。
+X 当前支持纯文本；小红书支持图片和单视频，其余已集成 CLI 使用单视频。注册表中的未实现候选不等于已接入。扫码、平台开发者授权和作品发布权限必须由真实账号完成，运行包不含这些凭证。
 
-配额、OAuth 应用审批、扫码及平台发布权限仍需真实账号提供；仓库和运行包不包含用户平台授权。未执行真实五平台发布前，不能宣称“两条可用独立通道”或五平台验收通过。
+## 维护与恢复
 
-## 出口
+本机后台任务名 `OmniDispatch-Hub-Agent`，Hub 仅监听回环 8791；桌面不会创建公网网站。退出桌面不终止正在处理的发布任务。配置通道不需要手工编辑 agent.json，节点自动重新读取配置。
 
-账号可选择 direct、trusted-static、resin，代理密码加密保管。当前实现验证了适配器的显式模式门槛；X API 和 biliup 有显式代理参数，其余通道禁止非直连模式，直到逐进程代理链路完成实测。不会导入公共免费代理，也不自动为风控更换出口。Resin 安装是外部网关安装，需用户自己配置可信代理资源；当前尚未实现管理 API 自动换绑与出口地理一致性实测。
+更新前备份源码；升级保留 state。数据库备份使用内置 Python 执行 `-m omnidispatch.cli --state state backup`，vault.key 单独安全保管。不要通过删除状态目录解决普通故障。
 
-## 更新
+开发：`dev\run-dev.cmd`；前端：`node apps\web\build.mjs`；测试：`dev\run-tests.cmd`；桌面编译：`desktop\build-desktop.ps1`。构建命令与依赖摘要见 desktop 目录及技能索引。真实发布验收与隔离测试结果分别记录。
 
-每日自动拉取 GitHub Releases 只产生候选。上传隔离安装包需 `X-Update-Signature` 和部署侧 OMNI_UPDATE_PUBLIC_KEY，zip 根目录包含 omni-engine.json（engine/version/adapter_protocol=1）。签名公钥不允许从包中注入。可使用 API multipart `/api/updates/{id}/stage` 上传。
+## 平台扩展与评论
 
-灰度需要标记“允许灰度”的账号和“灰度任务”，成功结果计入对应版本样本；至少 24 小时且三次成功、无失败才允许提升。Agent 必须已安装并上报匹配版本。可配置 OMNI_UPDATE_FEED_URL 指向同源 HTTPS 签名发布源，元数据有有效期、递增代次和签名；兼容补丁可自动下载、验证并创建隔离灰度通道。OMNI_AUTO_PROMOTE=1 仅提升自动策略允许且观察通过的补丁；手动大版本不会因此自动提升。Agent 配置中的 managed_engine 指定受管理引擎，并从同机 state/engine-versions 解析版本槽。普通任务不会使用灰度通道，灰度任务只使用明确允许的测试账号。
+已登记 23 个平台，首页使用“原有平台／短视频／长视频／文字社区／写作平台”分组，仍是一屏来源树。贴吧、知乎、豆瓣、微博、公众号、头条号、简书、掘金、CSDN、百家号已加入；视频增加抖音、快手、西瓜、好看、腾讯视频、优酷、爱奇艺和搜狐视频。
 
-当前自动更新没有实现跨节点二进制分发、通用凭证格式迁移、Hub 自更新和不可逆数据库自动降级，这些必须继续以明确实现和恢复验证为前提。没有信任公钥、测试账号或实际样本时保持阻塞。
+任务可选择发布、评论原帖或回复指定评论。评论必须填写本平台原帖链接，回复还须指定评论 ID／楼层；不会把评论误发成独立文章。公众号没有泛化的“评论别人文章”通道，界面与后端会拒绝这种任务。
 
-## 源码运行与验证
+通道页明确区分“社区引擎执行”与“本机桌面确认”。后者打开账号独立的可见浏览器，辅助填入文字与素材，由你在真实平台网页确认提交，再记录作品链接；不是无人值守自动发布。没有编辑器或网页不提供评论功能时，软件不能凭空补出平台接口。所有新增通道默认未核验、未启用，真实账号许可与作品验收需要实际完成。
 
-Python 3.11+：`python -m venv .venv`，激活后 `pip install -r requirements.lock.txt`。前端 `cd apps/web && npm ci && npm run build`。
+Spreado 与 social-auto-upload 用于已实现的视频上传路径，后者使用单独的 Python 3.12.10。X 与小红书的评论接口分别按实际 API 接入；小红书若只返回“成功”而没有评论 ID，仍会停在待核验。保存草稿记为 drafted，不会计为已发布；“继续编辑这份草稿”打开原稿链接，不新建另一篇。
 
-初始化：`python -m omnidispatch.cli --state state init`；Hub：`python -m omnidispatch.cli --state state serve`；节点注册：`python -m omnidispatch.cli --state state register-agent`；Agent：`python -m omnidispatch.cli agent --config state/agent.json`。
-
-验证：`python -m pytest -q`。测试使用独立临时数据库和测试凭证，绝不向平台提交。真实发布验收记录需单列。SQLite 备份：`python -m omnidispatch.cli --state state backup`，在线备份后执行完整性检查；vault.key 独立备份，不能只备数据库。PostgreSQL 使用 pg_dump/restore，Compose 模板尚需在目标生产环境验收。
-
-完整设计与参考来源见 DESIGN.md；安装和运行状态以 HANDOFF.md 为准。
-
-## 授权格式与部署入口
-
-凭证字段示例见 config/credentials.example.json，其中所有文字均为示例，不能当作有效授权。X 必须提供用户 OAuth token 与预期 user_id，YouTube 必须提供预期 channel_id、OAuth client_secrets 与 token。适配器在提交前核对实际身份。
-
-最新临时公网地址自动保存在 state/PUBLIC-URL.txt。当前云端对 trycloudflare 返回 Cloudflare 403，而远端电脑的当前域名健康回查为 200；固定生产域名尚未配置。当前完整目标的未完成事项详见 HANDOFF.md。
-
-容器启动：配置 deploy/compose.yml 所需环境变量后构建并启动，首次自动初始化管理员。普通网络使用系统 CA；受管理代理环境的构建使用 BuildKit proxy_ca 与 system_ca secret 挂载，CA 不写入镜像。镜像已实际使用非 root UID 10001 与 PostgreSQL 验证。
+社区选型的源码依据、版本、许可证与未采用原因见 DESIGN.md 的 2026-11-01 节。

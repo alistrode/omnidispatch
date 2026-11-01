@@ -1,0 +1,6 @@
+# 源码按原字节存放：直接使用随包运行时校验逐文件 SHA-256，不做换行归一化。
+* -text
+# 完整运行包（约 1.0 GB）不进 Git：GitHub 单文件上限 100 MB，LFS 免费额度也不够；
+# 它作为 Release 附件发布（单附件上限 2 GiB）。摘要见 packages/OmniDispatch-Desktop-Windows-x64.sha256，
+# 直链见 packages/DOWNLOAD.md。
+*.zip binary
